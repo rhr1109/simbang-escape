@@ -204,8 +204,11 @@ btnBoost.addEventListener('touchend', (e) => { e.preventDefault(); touchBoost = 
 btnBoost.addEventListener('touchcancel', () => { touchBoost = false; });
 btnAction.addEventListener('touchstart', (e) => { e.preventDefault(); doAction(); }, { passive: false });
 
-// 캔버스 직접 터치 (점프) / 클릭
-canvas.addEventListener('touchstart', (e) => {
+// 화면 어디든 터치하면 점프 / 클릭하면 진행 (모바일: 캔버스 밖도 포함)
+document.addEventListener('touchstart', (e) => {
+    // 터치 버튼(ACC, START) 위는 해당 버튼이 처리하므로 제외
+    let t = e.target;
+    if (t === btnBoost || t === btnAction) return;
     e.preventDefault();
     if (gameState === 'playing') doJump(); else doAction();
 }, { passive: false });
