@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>심방 탈출! - 도망가는 남편 잡기</title>
+    <title>심방런 - 도망가는 남편을 잡아라!</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -386,7 +386,7 @@ function update() {
     // 장애물 생성
     if (Math.random() < stage.obstacleRate) {
         let obs = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
-        obstacles.push({ ...obs, x: canvas.width + 50 + Math.random() * 100, y: GROUND_Y, passed: false, alpha: 0.45 });
+        obstacles.push({ ...obs, x: canvas.width + 50 + Math.random() * 100, y: GROUND_Y, passed: false, blockedHusband: false, alpha: 0.45 });
     }
 
     // ========= 아이템 이동 + 충돌 =========
@@ -434,9 +434,17 @@ function update() {
         return item.x > -80;
     });
 
-    // 장애물
+    // 장애물 (남편을 가로막고, 아내는 통과)
     obstacles = obstacles.filter(obs => {
         obs.x -= scrollSpeed;
+        // 남편 근처에 도달하면 남편을 가로막음 (잠깐 감속)
+        if (!obs.blockedHusband && Math.abs(obs.x - husband.x) < 40) {
+            obs.blockedHusband = true;
+            husband.slowEffects.push({ name: obs.name, amount: 0.8, remaining: 40 });
+            addTextParticle(obs.x, obs.y - 85, `${obs.name}: 어딜!`, '#FFD700', 14);
+            addParticle(obs.x, obs.y - 30, '#FFD700', 6, 4);
+        }
+        // 아내는 그냥 통과
         if (!obs.passed && Math.abs(obs.x - wife.x) < 35) {
             obs.passed = true; obs.alpha = 0.15;
             addTextParticle(obs.x, obs.y - 80, '쓩~', '#00FF88', 16);
@@ -828,17 +836,28 @@ function drawHusband(x, y, frame, scared) {
 
 function drawObstacle(obs) {
     ctx.save();
-    ctx.globalAlpha = obs.passed ? 0.15 : 0.4;
+    // 남편을 막는 중이면 불투명하게, 아내가 통과했으면 흐리게
+    let baseAlpha = obs.blockedHusband && !obs.passed ? 0.7 : (obs.passed ? 0.15 : 0.4);
+    ctx.globalAlpha = baseAlpha;
     ctx.translate(obs.x, obs.y);
-    ctx.strokeStyle = 'rgba(150,150,150,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = obs.blockedHusband && !obs.passed ? 'rgba(255,200,0,0.5)' : 'rgba(150,150,150,0.3)';
+    ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
     ctx.strokeRect(-obs.width / 2 - 2, -obs.height - 22, obs.width + 4, obs.height + 22); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#777'; ctx.fillRect(-obs.width / 2, -obs.height, obs.width, obs.height);
-    if (obs.collar) { ctx.fillStyle = '#BBB'; ctx.fillRect(-8, -obs.height + 2, 16, 5); }
+    let bodyColor = obs.blockedHusband && !obs.passed ? obs.color : '#777';
+    ctx.fillStyle = bodyColor; ctx.fillRect(-obs.width / 2, -obs.height, obs.width, obs.height);
+    if (obs.collar) { ctx.fillStyle = obs.blockedHusband ? '#FFF' : '#BBB'; ctx.fillRect(-8, -obs.height + 2, 16, 5); }
     ctx.fillStyle = '#C8B8A8'; ctx.beginPath(); ctx.arc(0, -obs.height - 8, 11, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#666'; ctx.beginPath(); ctx.arc(0, -obs.height - 11, 11, Math.PI, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#444'; ctx.fillRect(-5, -obs.height - 10, 3, 3); ctx.fillRect(2, -obs.height - 10, 3, 3);
-    if (!obs.passed) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#888'; ctx.font = '9px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('- 자동통과 -', 0, -obs.height - 22); }
+    // 남편을 막는 중: "어딜 가!" 말풍선
+    if (obs.blockedHusband && !obs.passed) {
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = 'rgba(255,255,255,0.9)'; roundRect(ctx, -22, -obs.height - 38, 44, 18, 5); ctx.fill();
+        ctx.fillStyle = '#C00'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('어딜!', 0, -obs.height - 29);
+    }
+    if (!obs.passed && !obs.blockedHusband) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#888'; ctx.font = '9px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('- 자동통과 -', 0, -obs.height - 22); }
     ctx.restore();
 }
 
@@ -932,8 +951,8 @@ function drawMenu() {
     ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
     for (let i = 0; i < 30; i++) { let px = (Date.now() * 0.02 * (i + 1) * 0.1) % canvas.width; let py = (Math.sin(Date.now() * 0.001 + i) * 0.5 + 0.5) * canvas.height; ctx.fillStyle = `rgba(233,69,96,${0.1 + Math.sin(i) * 0.1})`; ctx.beginPath(); ctx.arc(px, py, 2 + Math.sin(i * 2) * 2, 0, Math.PI * 2); ctx.fill(); }
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-    ctx.fillStyle = '#E94560'; ctx.font = 'bold 52px Malgun Gothic'; ctx.fillText('심방 탈출!', canvas.width / 2, 120);
-    ctx.fillStyle = '#FFF'; ctx.font = '22px Malgun Gothic'; ctx.fillText('도망가는 남편 잡기 대작전', canvas.width / 2, 165);
+    ctx.fillStyle = '#E94560'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText('심방런', canvas.width / 2, 115);
+    ctx.fillStyle = '#FFF'; ctx.font = '22px Malgun Gothic'; ctx.fillText('도망가는 남편을 잡아라!', canvas.width / 2, 160);
     drawWife(canvas.width / 2 - 80, 280, Math.floor(Date.now() / 150) % 4);
     drawHusband(canvas.width / 2 + 80, 280, Math.floor(Date.now() / 150) % 4, true);
     ctx.fillStyle = '#FFD700'; ctx.font = '28px serif'; ctx.fillText('>>>', canvas.width / 2, 258);
