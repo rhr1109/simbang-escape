@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>심방 탈출! - 도망가는 남편 잡기</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0f0f23;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        canvas {
+            border: 3px solid #e94560;
+            border-radius: 10px;
+            box-shadow: 0 0 40px rgba(233, 69, 96, 0.4);
+            display: block;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        /* 모바일 터치 버튼 */
+        #touchControls {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 140px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .touch-btn {
+            position: absolute;
+            pointer-events: auto;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            font-size: 28px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .touch-btn:active { background: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.7); }
+        #btnJump { width: 90px; height: 90px; right: 20px; bottom: 30px; font-size: 22px; }
+        #btnBoost { width: 75px; height: 75px; right: 125px; bottom: 38px; font-size: 18px; }
+        #btnAction { width: 110px; height: 60px; left: 50%; transform: translateX(-50%); bottom: 20px; border-radius: 30px; font-size: 16px; }
+        @media (hover: none) and (pointer: coarse) {
+            #touchControls { display: block; }
+        }
+    </style>
+</head>
+<body>
+<div id="gameContainer">
+    <canvas id="game"></canvas>
+    <div id="touchControls">
+        <div id="btnJump" class="touch-btn">JUMP</div>
+        <div id="btnBoost" class="touch-btn">ACC</div>
+        <div id="btnAction" class="touch-btn">START</div>
+    </div>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 1000;
+canvas.height = 600;
+
+const GROUND_Y = 500;
+const GRAVITY = 0.85;
+const JUMP_FORCE = -15;
+
+// ========== 아이템 정의 ==========
+// effectType: 'npc_block' = NPC가 남편 앞을 막음, 'slap' = 등짝, 'shout' = 고함 충격파,
+// 'holy' = 빛기둥, 'notes' = 음표, 'pray' = 기도빔, 'food' = 음식연기, 'money' = 돈날림, 'book' = 책펼침, 'key' = 열쇠잠금
+const ITEMS = [
+    { name: '목사님의 전화', emoji: '📞', color: '#FFD700', color2: '#FFA500', slowAmount: 2.0, duration: 180, desc: '목사님이 전화로 설교!', tier: 1, shape: 'circle', size: 26, effectType: 'npc_block', npcName: '목사님', npcColor: '#2C3E50', npcEmoji: '📞' },
+    { name: '등짝 스매싱', emoji: '👋', color: '#FF2222', color2: '#CC0000', slowAmount: 3.5, duration: 120, desc: '등짝 스매싱!', tier: 1, shape: 'burst', size: 32, effectType: 'slap' },
+    { name: '설교', emoji: '📖', color: '#8B6914', color2: '#654321', slowAmount: 1.5, duration: 240, desc: '설교가 발을 묶는다!', tier: 1, shape: 'book', size: 28, effectType: 'book' },
+    { name: '성경', emoji: '✝️', color: '#DAA520', color2: '#B8860B', slowAmount: 2.0, duration: 200, desc: '성경 말씀의 힘!', tier: 1, shape: 'cross', size: 28, effectType: 'holy' },
+    { name: '아내의 고함', emoji: '📢', color: '#FF4081', color2: '#E91E63', slowAmount: 2.5, duration: 150, desc: '"여보!!! 거기 서!!!"', tier: 2, shape: 'shockwave', size: 30, effectType: 'shout' },
+    { name: '찬송가', emoji: '🎵', color: '#AB47BC', color2: '#7B1FA2', slowAmount: 1.8, duration: 220, desc: '찬송가가 울려퍼진다!', tier: 2, shape: 'note', size: 26, effectType: 'notes' },
+    { name: '권사님의 잔소리', emoji: '👵', color: '#FF8F00', color2: '#E65100', slowAmount: 2.2, duration: 190, desc: '권사님이 달려간다!', tier: 2, shape: 'hexagon', size: 28, effectType: 'npc_block', npcName: '권사님', npcColor: '#8E44AD', npcEmoji: '🗣️' },
+    { name: '헌금봉투', emoji: '💰', color: '#43A047', color2: '#2E7D32', slowAmount: 1.0, duration: 300, desc: '헌금을 안 냈잖아!', tier: 1, shape: 'diamond', size: 24, effectType: 'money' },
+    { name: '떡볶이', emoji: '🍜', color: '#E53935', color2: '#B71C1C', slowAmount: 1.5, duration: 180, desc: '떡볶이 냄새에...', tier: 2, shape: 'circle', size: 26, effectType: 'food' },
+    { name: '주일학교 아이들', emoji: '👶', color: '#1E88E5', color2: '#1565C0', slowAmount: 2.0, duration: 160, desc: '아이들이 달려간다!', tier: 3, shape: 'star', size: 30, effectType: 'npc_block', npcName: '아이들', npcColor: '#1E88E5', npcEmoji: '👶' },
+    { name: '집사님의 기도', emoji: '🙏', color: '#FDD835', color2: '#F9A825', slowAmount: 2.8, duration: 140, desc: '집사님이 기도하며 막는다!', tier: 3, shape: 'shield', size: 30, effectType: 'npc_block', npcName: '집사님', npcColor: '#2980B9', npcEmoji: '🙏' },
+    { name: '버스 열쇠', emoji: '🔑', color: '#00ACC1', color2: '#00838F', slowAmount: 3.0, duration: 130, desc: '도망갈 차가 없다!', tier: 3, shape: 'diamond', size: 28, effectType: 'key' },
+    { name: '안수기도', emoji: '🤲', color: '#FFD700', color2: '#FF8F00', slowAmount: 4.0, duration: 100, desc: '안수기도! 꼼짝 못함!', tier: 4, shape: 'holystar', size: 36, effectType: 'holy' },
+    { name: '전교인 기도회', emoji: '⛪', color: '#E91E63', color2: '#880E4F', slowAmount: 5.0, duration: 80, desc: '전교인이 기도!', tier: 4, shape: 'church', size: 40, effectType: 'pray' },
+];
+
+// ========== 스테이지 ==========
+const STAGES = [
+    { name: '1단계: 교회 마당', bgColor1: '#87CEEB', bgColor2: '#6B8E23', husbandSpeed: 3.2, wifeSpeed: 2.4, itemRate: 0.018, obstacleRate: 0.006, catchDist: 500, maxTier: 1, scrollMult: 1.0, story: '예배가 끝나자마자 남편이 도망친다!' },
+    { name: '2단계: 교회 주차장', bgColor1: '#778899', bgColor2: '#808080', husbandSpeed: 3.5, wifeSpeed: 2.5, itemRate: 0.018, obstacleRate: 0.008, catchDist: 550, maxTier: 1, scrollMult: 1.1, story: '남편이 주차장으로 뛰어간다!' },
+    { name: '3단계: 교회 앞 도로', bgColor1: '#87CEEB', bgColor2: '#A0522D', husbandSpeed: 3.8, wifeSpeed: 2.6, itemRate: 0.020, obstacleRate: 0.010, catchDist: 600, maxTier: 2, scrollMult: 1.2, story: '도로로 나간 남편! 잡아야 해!' },
+    { name: '4단계: 골목길', bgColor1: '#696969', bgColor2: '#808080', husbandSpeed: 4.1, wifeSpeed: 2.7, itemRate: 0.020, obstacleRate: 0.012, catchDist: 600, maxTier: 2, scrollMult: 1.3, story: '좁은 골목으로 숨는 남편!' },
+    { name: '5단계: 전통시장', bgColor1: '#FFE4B5', bgColor2: '#A0522D', husbandSpeed: 4.4, wifeSpeed: 2.8, itemRate: 0.022, obstacleRate: 0.015, catchDist: 650, maxTier: 2, scrollMult: 1.4, story: '시장 인파 속으로 도망치다!' },
+    { name: '6단계: 공원', bgColor1: '#87CEEB', bgColor2: '#228B22', husbandSpeed: 4.7, wifeSpeed: 2.9, itemRate: 0.022, obstacleRate: 0.012, catchDist: 650, maxTier: 3, scrollMult: 1.5, story: '공원에서 전력 질주하는 남편!' },
+    { name: '7단계: 아파트 단지', bgColor1: '#B0C4DE', bgColor2: '#A9A9A9', husbandSpeed: 5.0, wifeSpeed: 3.0, itemRate: 0.024, obstacleRate: 0.018, catchDist: 700, maxTier: 3, scrollMult: 1.6, story: '아파트 단지를 누비는 남편!' },
+    { name: '8단계: 산 길', bgColor1: '#87CEEB', bgColor2: '#556B2F', husbandSpeed: 5.2, wifeSpeed: 3.1, itemRate: 0.024, obstacleRate: 0.015, catchDist: 700, maxTier: 3, scrollMult: 1.7, story: '산으로 도망가는 남편?!' },
+    { name: '9단계: 고속도로', bgColor1: '#4682B4', bgColor2: '#808080', husbandSpeed: 5.5, wifeSpeed: 3.2, itemRate: 0.026, obstacleRate: 0.020, catchDist: 750, maxTier: 4, scrollMult: 1.8, story: '고속도로까지 온 남편!' },
+    { name: '10단계: 터미널', bgColor1: '#708090', bgColor2: '#A9A9A9', husbandSpeed: 5.7, wifeSpeed: 3.2, itemRate: 0.026, obstacleRate: 0.018, catchDist: 750, maxTier: 4, scrollMult: 1.9, story: '터미널로 도망?! 절대 안돼!' },
+    { name: '11단계: 기차역', bgColor1: '#4169E1', bgColor2: '#696969', husbandSpeed: 6.0, wifeSpeed: 3.3, itemRate: 0.028, obstacleRate: 0.022, catchDist: 800, maxTier: 4, scrollMult: 2.0, story: 'KTX를 타려는 남편!' },
+    { name: '12단계: 집 앞', bgColor1: '#FF6347', bgColor2: '#8B4513', husbandSpeed: 6.2, wifeSpeed: 3.3, itemRate: 0.030, obstacleRate: 0.022, catchDist: 800, maxTier: 4, scrollMult: 2.1, story: '마지막! 집 앞에서 끝내자!' },
+];
+
+const OBSTACLE_TYPES = [
+    { name: '목사님', color: '#2C3E50', width: 40, height: 65, collar: true },
+    { name: '장로님', color: '#34495E', width: 38, height: 62, collar: false },
+    { name: '권사님', color: '#8E44AD', width: 36, height: 58, collar: false },
+    { name: '집사님', color: '#2980B9', width: 38, height: 62, collar: false },
+    { name: '성도', color: '#27AE60', width: 36, height: 58, collar: false },
+    { name: '성가대원', color: '#C0392B', width: 38, height: 62, collar: false },
+];
+
+// ========== 게임 상태 ==========
+let gameState = 'menu';
+let currentStage = 0;
+let score = 0;
+let totalScore = 0;
+
+let wife = { x: 150, y: GROUND_Y, vy: 0, jumpCount: 0, frame: 0, frameTimer: 0, speedBoost: 0 };
+let husband = { x: 0, y: GROUND_Y, frame: 0, frameTimer: 0, baseSpeed: 3, currentSpeed: 3, slowEffects: [], sweatDrops: [], scared: false, hitTimer: 0 };
+
+let distance = 0;
+let items = [];
+let obstacles = [];
+let particles = [];
+let activeEffects = []; // 아이템 사용 시 특수 이펙트
+let npcBlockers = [];   // NPC 차단자 (남편 앞을 막는 캐릭터)
+let bgScroll = 0;
+let clouds = [];
+let buildings = [];
+let shakeTimer = 0, shakeIntensity = 0;
+let messageText = '', messageTimer = 0, messageColor = '#FFD700';
+let stageTimer = 0;
+let comboCount = 0, comboTimer = 0;
+let keys = {};
+
+// ========== 초기화 ==========
+function initStage() {
+    const s = STAGES[currentStage];
+    distance = s.catchDist;
+    husband.baseSpeed = s.husbandSpeed;
+    husband.currentSpeed = s.husbandSpeed;
+    husband.slowEffects = []; husband.sweatDrops = []; husband.scared = false; husband.hitTimer = 0;
+    husband.y = GROUND_Y;
+    wife.x = 150; wife.y = GROUND_Y; wife.vy = 0; wife.jumpCount = 0; wife.speedBoost = 0;
+    items = []; obstacles = []; particles = []; activeEffects = []; npcBlockers = [];
+    shakeTimer = 0; messageText = ''; messageTimer = 0;
+    stageTimer = 0; comboCount = 0; comboTimer = 0; score = 0;
+    clouds = []; buildings = [];
+    for (let i = 0; i < 8; i++) clouds.push({ x: Math.random() * canvas.width * 2, y: 30 + Math.random() * 100, width: 60 + Math.random() * 100, speed: 0.3 + Math.random() * 0.5 });
+    for (let i = 0; i < 15; i++) buildings.push({ x: i * 150 + Math.random() * 80, width: 60 + Math.random() * 80, height: 80 + Math.random() * 180, color: `hsl(${Math.random() * 30 + 200}, 20%, ${30 + Math.random() * 20}%)` });
+}
+
+// ========== 입력 ==========
+document.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    if (gameState === 'menu' && (e.code === 'Space' || e.code === 'Enter')) { gameState = 'storyIntro'; stageTimer = 0; initStage(); }
+    if (gameState === 'storyIntro' && (e.code === 'Space' || e.code === 'Enter')) { gameState = 'playing'; }
+    if (gameState === 'stageClear' && (e.code === 'Space' || e.code === 'Enter')) { currentStage++; if (currentStage >= STAGES.length) gameState = 'ending'; else { gameState = 'storyIntro'; stageTimer = 0; initStage(); } }
+    if (gameState === 'gameOver' && (e.code === 'Space' || e.code === 'Enter')) { initStage(); gameState = 'storyIntro'; stageTimer = 0; }
+    if (gameState === 'ending' && (e.code === 'Space' || e.code === 'Enter')) { currentStage = 0; totalScore = 0; gameState = 'menu'; }
+    if (gameState === 'playing') {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') doJump();
+    }
+    e.preventDefault();
+});
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+function doJump() {
+    if (wife.jumpCount < 2) {
+        wife.vy = wife.jumpCount === 0 ? JUMP_FORCE : JUMP_FORCE * 0.85;
+        wife.jumpCount++;
+    }
+}
+function doAction() {
+    if (gameState === 'menu') { gameState = 'storyIntro'; stageTimer = 0; initStage(); }
+    else if (gameState === 'storyIntro') { gameState = 'playing'; }
+    else if (gameState === 'stageClear') { currentStage++; if (currentStage >= STAGES.length) gameState = 'ending'; else { gameState = 'storyIntro'; stageTimer = 0; initStage(); } }
+    else if (gameState === 'gameOver') { initStage(); gameState = 'storyIntro'; stageTimer = 0; }
+    else if (gameState === 'ending') { currentStage = 0; totalScore = 0; gameState = 'menu'; }
+}
+
+// ========== 모바일 터치 ==========
+let touchBoost = false;
+const btnJump = document.getElementById('btnJump');
+const btnBoost = document.getElementById('btnBoost');
+const btnAction = document.getElementById('btnAction');
+
+btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'playing') doJump(); else doAction(); }, { passive: false });
+btnBoost.addEventListener('touchstart', (e) => { e.preventDefault(); touchBoost = true; }, { passive: false });
+btnBoost.addEventListener('touchend', (e) => { e.preventDefault(); touchBoost = false; }, { passive: false });
+btnBoost.addEventListener('touchcancel', () => { touchBoost = false; });
+btnAction.addEventListener('touchstart', (e) => { e.preventDefault(); doAction(); }, { passive: false });
+
+// 캔버스 직접 터치 (점프) / 클릭
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (gameState === 'playing') doJump(); else doAction();
+}, { passive: false });
+canvas.addEventListener('click', () => {
+    if (gameState !== 'playing') doAction();
+});
+
+// ========== 반응형 리사이즈 ==========
+function resizeCanvas() {
+    let maxW = window.innerWidth;
+    let maxH = window.innerHeight;
+    let scale = Math.min(maxW / 1000, maxH / 600);
+    canvas.style.width = Math.floor(1000 * scale) + 'px';
+    canvas.style.height = Math.floor(600 * scale) + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ========== 파티클 ==========
+function addParticle(x, y, color, count, speed) {
+    for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * speed, vy: (Math.random() - 0.5) * speed - 2, life: 1, decay: 0.01 + Math.random() * 0.03, size: 3 + Math.random() * 5, color });
+}
+function addTextParticle(x, y, text, color, sz) {
+    particles.push({ x, y, text, color, vx: (Math.random() - 0.5), vy: -2.5, life: 1, decay: 0.012, size: sz || 18, isText: true });
+}
+
+// ========== 특수 이펙트 트리거 ==========
+function triggerItemEffect(item) {
+    let hx = husband.x, hy = husband.y;
+    let wx = wife.x, wy = wife.y;
+
+    switch (item.effectType) {
+        case 'slap': // 등짝 스매싱 - 거대 손바닥
+            activeEffects.push({ type: 'slap', x: hx, y: hy, timer: 60, maxTimer: 60 });
+            shakeTimer = 20; shakeIntensity = 12;
+            husband.hitTimer = 40;
+            addTextParticle(hx, hy - 80, '퍽!!!', '#FF0000', 36);
+            for (let i = 0; i < 30; i++) addParticle(hx, hy - 40, '#FF4444', 1, 10);
+            break;
+
+        case 'shout': // 아내의 고함 - 충격파 링
+            activeEffects.push({ type: 'shout', x: wx, y: wy - 40, timer: 50, maxTimer: 50 });
+            shakeTimer = 12; shakeIntensity = 8;
+            husband.hitTimer = 35;
+            addTextParticle(wx + 50, wy - 70, '여보!!!', '#FF4081', 30);
+            addTextParticle(wx + 80, wy - 50, '거기 서!!!', '#FF4081', 24);
+            break;
+
+        case 'npc_block': // NPC가 남편 앞을 막음
+            npcBlockers.push({
+                name: item.npcName, color: item.npcColor, emoji: item.npcEmoji,
+                x: wx + 30, y: GROUND_Y, targetX: hx - 30,
+                speed: 8, timer: item.duration, arrived: false,
+                frame: 0, frameTimer: 0
+            });
+            husband.hitTimer = 25;
+            addTextParticle(wx, wy - 80, `${item.npcName} 출동!`, item.color, 22);
+            break;
+
+        case 'holy': // 빛기둥
+            activeEffects.push({ type: 'holy', x: hx, y: 0, timer: 70, maxTimer: 70 });
+            husband.hitTimer = 35;
+            addTextParticle(hx, hy - 90, '빛의 심판!', '#FFD700', 26);
+            break;
+
+        case 'notes': // 음표 날리기
+            for (let i = 0; i < 12; i++) {
+                activeEffects.push({ type: 'note', x: wx + Math.random() * 200, y: wy - 30 - Math.random() * 80, timer: 80 + Math.random() * 40, maxTimer: 120, vx: 1 + Math.random() * 2, vy: -1 - Math.random() * 2, noteIdx: i % 4 });
+            }
+            husband.hitTimer = 20;
+            break;
+
+        case 'book': // 책 펼침
+            activeEffects.push({ type: 'book', x: hx, y: hy - 60, timer: 60, maxTimer: 60 });
+            husband.hitTimer = 25;
+            addTextParticle(hx, hy - 100, '말씀의 힘!', '#8B6914', 22);
+            break;
+
+        case 'money': // 돈 날림
+            for (let i = 0; i < 8; i++) {
+                activeEffects.push({ type: 'money', x: hx + (Math.random() - 0.5) * 80, y: hy - 40 - Math.random() * 60, timer: 70 + Math.random() * 30, maxTimer: 100, vy: -2 - Math.random() * 3, vx: (Math.random() - 0.5) * 3, rot: Math.random() * 6 });
+            }
+            husband.hitTimer = 20;
+            addTextParticle(hx, hy - 100, '헌금 안 냈다!', '#43A047', 20);
+            break;
+
+        case 'food': // 음식 연기
+            activeEffects.push({ type: 'food', x: hx, y: hy - 30, timer: 80, maxTimer: 80 });
+            husband.hitTimer = 20;
+            addTextParticle(hx, hy - 90, '맛있는 냄새~', '#E53935', 20);
+            break;
+
+        case 'key': // 열쇠 잠금
+            activeEffects.push({ type: 'key', x: hx, y: hy - 50, timer: 60, maxTimer: 60 });
+            addTextParticle(hx, hy - 90, '차 열쇠 압수!', '#00ACC1', 22);
+            husband.hitTimer = 30;
+            break;
+
+        case 'pray': // 전교인 기도
+            activeEffects.push({ type: 'pray', x: hx, y: 0, timer: 80, maxTimer: 80 });
+            shakeTimer = 15; shakeIntensity = 10;
+            husband.hitTimer = 45;
+            addTextParticle(hx - 40, hy - 100, '전교인 기도!', '#E91E63', 28);
+            // 여러 기도 손
+            for (let i = 0; i < 6; i++) {
+                activeEffects.push({ type: 'pray_hand', x: hx + (i - 3) * 40, y: -20, targetY: hy - 60, timer: 60, maxTimer: 60, delay: i * 5 });
+            }
+            break;
+    }
+}
+
+// ========== 업데이트 ==========
+function update() {
+    if (gameState === 'storyIntro') { stageTimer++; return; }
+    if (gameState !== 'playing') return;
+    const stage = STAGES[currentStage];
+    stageTimer++;
+
+    if (comboTimer > 0) { comboTimer--; if (comboTimer <= 0) comboCount = 0; }
+    if (shakeTimer > 0) shakeTimer--;
+    if (messageTimer > 0) messageTimer--;
+    if (husband.hitTimer > 0) husband.hitTimer--;
+
+    // 점프 (2단 점프 지원)
+    if (wife.jumpCount > 0) {
+        wife.vy += GRAVITY;
+        wife.y += wife.vy;
+        if (wife.y >= GROUND_Y) { wife.y = GROUND_Y; wife.vy = 0; wife.jumpCount = 0; }
+    }
+
+    // 가속 (키보드 + 터치)
+    if (keys['ArrowRight'] || keys['KeyD'] || touchBoost) wife.speedBoost = Math.min(wife.speedBoost + 0.1, 2.0);
+    else wife.speedBoost = Math.max(wife.speedBoost - 0.05, 0);
+
+    // 남편 감속
+    let totalSlow = 0;
+    husband.slowEffects = husband.slowEffects.filter(e => { e.remaining--; if (e.remaining > 0) { totalSlow += e.amount; return true; } return false; });
+    husband.currentSpeed = Math.max(0.3, husband.baseSpeed - totalSlow);
+    husband.scared = totalSlow > 0;
+
+    // 땀방울
+    if (husband.scared && Math.random() < 0.12) husband.sweatDrops.push({ ox: Math.random() * 20 - 10, oy: -55 - Math.random() * 15, vy: -1.5 - Math.random(), life: 1 });
+    husband.sweatDrops = husband.sweatDrops.filter(d => { d.oy += d.vy; d.vy += 0.1; d.life -= 0.025; return d.life > 0; });
+
+    // 거리
+    let wifeSpeed = stage.wifeSpeed + wife.speedBoost;
+    distance += (husband.currentSpeed - wifeSpeed) * 0.5;
+    bgScroll += (husband.currentSpeed + wifeSpeed) * 0.5;
+    let scrollSpeed = (wifeSpeed * 2 + 1) * stage.scrollMult;
+
+    // ========= 아이템 생성 (더 어렵게) =========
+    if (Math.random() < stage.itemRate) {
+        let avail = ITEMS.filter(i => i.tier <= stage.maxTier);
+        let item = avail[Math.floor(Math.random() * avail.length)];
+        // 50% 공중 (점프 필요), 높이도 다양
+        let airChance = 0.45 + currentStage * 0.02;
+        let isAir = Math.random() < airChance;
+        let floatH = isAir ? (50 + Math.random() * 70) : 0;
+        // 이동 패턴: 'straight', 'sine', 'zigzag', 'dive'
+        let patterns = ['straight', 'straight', 'sine', 'zigzag'];
+        if (currentStage >= 4) patterns.push('sine', 'zigzag', 'dive');
+        if (currentStage >= 8) patterns.push('zigzag', 'dive', 'dive');
+        let movePattern = patterns[Math.floor(Math.random() * patterns.length)];
+
+        items.push({
+            ...item,
+            x: canvas.width + 60 + Math.random() * 250,
+            y: GROUND_Y - floatH,
+            baseY: GROUND_Y - floatH,
+            bobOffset: Math.random() * Math.PI * 2,
+            sparkle: Math.random() * Math.PI * 2,
+            age: 0,
+            movePattern: movePattern,
+            movePhase: Math.random() * Math.PI * 2,
+        });
+    }
+
+    // 장애물 생성
+    if (Math.random() < stage.obstacleRate) {
+        let obs = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+        obstacles.push({ ...obs, x: canvas.width + 50 + Math.random() * 100, y: GROUND_Y, passed: false, alpha: 0.45 });
+    }
+
+    // ========= 아이템 이동 + 충돌 =========
+    items = items.filter(item => {
+        item.x -= scrollSpeed;
+        item.sparkle += 0.08;
+        item.age++;
+        item.movePhase += 0.06;
+
+        // 이동 패턴 적용
+        switch (item.movePattern) {
+            case 'sine':
+                item.y = item.baseY + Math.sin(item.movePhase) * 40;
+                break;
+            case 'zigzag':
+                item.y = item.baseY + ((item.movePhase * 2) % 2 < 1 ? -1 : 1) * Math.sin(item.movePhase * 3) * 35;
+                break;
+            case 'dive':
+                if (item.age > 30) item.y = Math.min(GROUND_Y, item.baseY + (item.age - 30) * 1.5);
+                break;
+        }
+
+        // 충돌
+        let wCx = wife.x, wCy = wife.y - 32;
+        let iCy = item.y - item.size;
+        let dx = Math.abs(item.x - wCx);
+        let dy = Math.abs(iCy - wCy);
+
+        if (dx < 35 && dy < 40) {
+            comboCount++; comboTimer = 180;
+            let mult = Math.min(comboCount, 5);
+            let eff = item.slowAmount * (1 + mult * 0.2);
+            husband.slowEffects.push({ name: item.name, amount: eff, remaining: item.duration });
+            let pts = Math.floor(item.slowAmount * 100 * mult);
+            score += pts;
+
+            addParticle(item.x, item.y - item.size, item.color, 20, 8);
+            let ct = comboCount > 1 ? ` x${comboCount}` : '';
+            addTextParticle(item.x, item.y - item.size - 20, `+${pts}${ct}`, item.color, 22);
+
+            messageText = item.desc; messageTimer = 100; messageColor = item.color;
+            triggerItemEffect(item);
+            return false;
+        }
+        return item.x > -80;
+    });
+
+    // 장애물
+    obstacles = obstacles.filter(obs => {
+        obs.x -= scrollSpeed;
+        if (!obs.passed && Math.abs(obs.x - wife.x) < 35) {
+            obs.passed = true; obs.alpha = 0.15;
+            addTextParticle(obs.x, obs.y - 80, '쓩~', '#00FF88', 16);
+        }
+        return obs.x > -100;
+    });
+
+    // ========= NPC 차단자 업데이트 =========
+    npcBlockers = npcBlockers.filter(npc => {
+        npc.timer--;
+        npc.frameTimer++; if (npc.frameTimer > 5) { npc.frame = (npc.frame + 1) % 4; npc.frameTimer = 0; }
+        npc.targetX = husband.x - 30; // 남편 따라감
+
+        if (!npc.arrived) {
+            npc.x += npc.speed;
+            if (npc.x >= npc.targetX) { npc.arrived = true; npc.x = npc.targetX; }
+        } else {
+            npc.x += (npc.targetX - npc.x) * 0.1; // 남편 앞에 계속 유지
+        }
+        // 도착하면 주기적 파티클
+        if (npc.arrived && Math.random() < 0.08) {
+            addTextParticle(npc.x + Math.random() * 30, npc.y - 70 - Math.random() * 20, npc.emoji, npc.color, 16);
+        }
+        return npc.timer > 0;
+    });
+
+    // ========= 특수 이펙트 업데이트 =========
+    activeEffects = activeEffects.filter(e => {
+        e.timer--;
+        if (e.type === 'note') { e.x += e.vx; e.y += e.vy; e.vy += 0.03; }
+        if (e.type === 'money') { e.x += e.vx; e.y += e.vy; e.vy += 0.08; e.rot += 0.1; }
+        if (e.type === 'pray_hand') { if (e.delay > 0) { e.delay--; return true; } e.y += (e.targetY - e.y) * 0.1; }
+        // 이펙트가 남편 위치 추적
+        if (e.type === 'slap' || e.type === 'holy' || e.type === 'book' || e.type === 'food' || e.type === 'key' || e.type === 'pray') {
+            e.x = husband.x;
+        }
+        return e.timer > 0;
+    });
+
+    // 파티클
+    particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; if (!p.isText) p.vy += 0.05; p.life -= p.decay; return p.life > 0; });
+    clouds.forEach(c => { c.x -= c.speed; if (c.x < -c.width) c.x = canvas.width + c.width; });
+    buildings.forEach(b => { b.x -= scrollSpeed * 0.3; if (b.x < -b.width - 50) b.x = canvas.width + 100 + Math.random() * 100; });
+
+    // 애니메이션
+    wife.frameTimer++; if (wife.frameTimer > 5) { wife.frame = (wife.frame + 1) % 4; wife.frameTimer = 0; }
+    husband.frameTimer++; if (husband.frameTimer > (husband.scared ? 10 : 4)) { husband.frame = (husband.frame + 1) % 4; husband.frameTimer = 0; }
+
+    husband.x = wife.x + Math.min(distance, canvas.width - 200);
+    husband.y = GROUND_Y;
+
+    if (distance <= 0) { gameState = 'stageClear'; totalScore += score; shakeTimer = 30; shakeIntensity = 10; }
+    if (distance > stage.catchDist + 400) gameState = 'gameOver';
+}
+
+// ========== 형태 그리기 ==========
+function drawShapeCircle(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);}
+function drawShapeDiamond(x,y,r){ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x+r*.75,y);ctx.lineTo(x,y+r);ctx.lineTo(x-r*.75,y);ctx.closePath();}
+function drawShapeStar(x,y,r,p){p=p||5;ctx.beginPath();for(let i=0;i<p*2;i++){let R=i%2===0?r:r*.45,a=i*Math.PI/p-Math.PI/2;i===0?ctx.moveTo(x+Math.cos(a)*R,y+Math.sin(a)*R):ctx.lineTo(x+Math.cos(a)*R,y+Math.sin(a)*R);}ctx.closePath();}
+function drawShapeHexagon(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){let a=i*Math.PI/3-Math.PI/6;i===0?ctx.moveTo(x+Math.cos(a)*r,y+Math.sin(a)*r):ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}ctx.closePath();}
+function drawShapeBurst(x,y,r){ctx.beginPath();for(let i=0;i<16;i++){let R=i%2===0?r:r*.6,a=i*Math.PI/8;i===0?ctx.moveTo(x+Math.cos(a)*R,y+Math.sin(a)*R):ctx.lineTo(x+Math.cos(a)*R,y+Math.sin(a)*R);}ctx.closePath();}
+function drawShapeShield(x,y,r){ctx.beginPath();ctx.moveTo(x,y-r);ctx.quadraticCurveTo(x+r,y-r*.6,x+r*.8,y);ctx.quadraticCurveTo(x+r*.5,y+r*.8,x,y+r);ctx.quadraticCurveTo(x-r*.5,y+r*.8,x-r*.8,y);ctx.quadraticCurveTo(x-r,y-r*.6,x,y-r);ctx.closePath();}
+function drawShapeBook(x,y,r){ctx.beginPath();ctx.moveTo(x-r*.8,y-r*.9);ctx.lineTo(x+r*.8,y-r*.9);ctx.lineTo(x+r*.8,y+r*.9);ctx.lineTo(x,y+r*.7);ctx.lineTo(x-r*.8,y+r*.9);ctx.closePath();}
+function drawShapeCross(x,y,r){let w=r*.35;ctx.beginPath();ctx.moveTo(x-w,y-r);ctx.lineTo(x+w,y-r);ctx.lineTo(x+w,y-w);ctx.lineTo(x+r*.7,y-w);ctx.lineTo(x+r*.7,y+w);ctx.lineTo(x+w,y+w);ctx.lineTo(x+w,y+r);ctx.lineTo(x-w,y+r);ctx.lineTo(x-w,y+w);ctx.lineTo(x-r*.7,y+w);ctx.lineTo(x-r*.7,y-w);ctx.lineTo(x-w,y-w);ctx.closePath();}
+function drawShapeNote(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);}
+function drawShapeShockwave(x,y,r){ctx.beginPath();ctx.moveTo(x-r*.6,y-r*.4);ctx.lineTo(x+r*.3,y-r);ctx.lineTo(x+r*.3,y+r);ctx.lineTo(x-r*.6,y+r*.4);ctx.closePath();}
+function drawShapeChurch(x,y,r){ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x+r*.8,y-r*.2);ctx.lineTo(x+r*.6,y-r*.2);ctx.lineTo(x+r*.6,y+r);ctx.lineTo(x-r*.6,y+r);ctx.lineTo(x-r*.6,y-r*.2);ctx.lineTo(x-r*.8,y-r*.2);ctx.closePath();}
+function drawShapeHolyStar(x,y,r){drawShapeStar(x,y,r,6);}
+
+function getShapeFn(s){return{circle:drawShapeCircle,diamond:drawShapeDiamond,star:drawShapeStar,hexagon:drawShapeHexagon,burst:drawShapeBurst,shield:drawShapeShield,book:drawShapeBook,cross:drawShapeCross,note:drawShapeNote,shockwave:drawShapeShockwave,church:drawShapeChurch,holystar:drawShapeHolyStar}[s]||drawShapeCircle;}
+
+// ========== 아이템 그리기 ==========
+function drawItem(item) {
+    ctx.save();
+    let bobY = Math.sin(Date.now() * 0.004 + item.bobOffset) * 5;
+    let cx = item.x, cy = item.y - item.size + bobY, r = item.size;
+    let t = Date.now() * 0.001;
+
+    // 빛기둥
+    let ba = 0.1 + Math.sin(t * 3 + item.bobOffset) * 0.05;
+    let bg = ctx.createLinearGradient(cx, cy + r, cx, GROUND_Y);
+    bg.addColorStop(0, `rgba(0,255,100,${ba * 2})`); bg.addColorStop(1, 'rgba(0,255,100,0)');
+    ctx.fillStyle = bg; ctx.fillRect(cx - 12, cy + r, 24, GROUND_Y - (cy + r));
+
+    // 바닥 글로우
+    let gr = 18 + Math.sin(t * 4) * 4;
+    let gg = ctx.createRadialGradient(cx, GROUND_Y, 0, cx, GROUND_Y, gr);
+    gg.addColorStop(0, 'rgba(0,255,100,0.3)'); gg.addColorStop(1, 'rgba(0,255,100,0)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(cx, GROUND_Y, gr, gr * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 황금 링
+    let rp = Math.sin(t * 5 + item.bobOffset) * 0.2 + 0.6;
+    ctx.strokeStyle = `rgba(255,215,0,${rp})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 7, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 3; i++) { let a = t * 3 + i * 2.094; ctx.fillStyle = `rgba(255,255,200,${0.7 + Math.sin(t * 8 + i) * 0.3})`; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * (r + 7), cy + Math.sin(a) * (r + 7), 2.5, 0, Math.PI * 2); ctx.fill(); }
+
+    // 본체
+    let fn = getShapeFn(item.shape);
+    let gd = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.2, 0, cx, cy, r);
+    gd.addColorStop(0, lightenColor(item.color, 60)); gd.addColorStop(0.6, item.color); gd.addColorStop(1, item.color2);
+    ctx.fillStyle = gd; fn(cx, cy, r); ctx.fill();
+    ctx.strokeStyle = item.color2; ctx.lineWidth = item.tier >= 3 ? 3 : 2; fn(cx, cy, r); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.2, cy - r * 0.25, r * 0.35, r * 0.2, -0.3, 0, Math.PI * 2); ctx.fill();
+
+    // 이모지
+    ctx.font = `${Math.floor(r * 0.85)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(item.emoji, cx, cy + 1);
+
+    // GET / JUMP 라벨
+    let ab = Math.sin(t * 6) * 4;
+    if (item.baseY < GROUND_Y - 20) {
+        ctx.fillStyle = `rgba(255,255,0,${0.7 + Math.sin(t * 6) * 0.3})`; ctx.font = 'bold 12px Malgun Gothic'; ctx.textBaseline = 'bottom'; ctx.fillText('JUMP!', cx, cy - r - 8 + ab); ctx.fillText('\u25BC', cx, cy - r + 1 + ab);
+    } else {
+        ctx.fillStyle = `rgba(0,255,100,${0.7 + Math.sin(t * 6) * 0.3})`; ctx.font = 'bold 11px Malgun Gothic'; ctx.textBaseline = 'bottom'; ctx.fillText('GET!', cx, cy - r - 6 + ab); ctx.fillText('\u25BC', cx, cy - r + 2 + ab);
+    }
+
+    // 이름
+    ctx.font = 'bold 9px Malgun Gothic'; ctx.textBaseline = 'top';
+    let nw = ctx.measureText(item.name).width;
+    ctx.fillStyle = 'rgba(0,80,0,0.8)'; roundRect(ctx, cx - nw / 2 - 4, cy + r + 4, nw + 8, 14, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,255,100,0.5)'; ctx.lineWidth = 1; roundRect(ctx, cx - nw / 2 - 4, cy + r + 4, nw + 8, 14, 3); ctx.stroke();
+    ctx.fillStyle = '#88FF88'; ctx.textAlign = 'center'; ctx.fillText(item.name, cx, cy + r + 6);
+
+    ctx.restore();
+}
+
+// ========== 특수 이펙트 렌더링 ==========
+function drawActiveEffects() {
+    activeEffects.forEach(e => {
+        let p = e.timer / e.maxTimer; // 1->0 progress
+        ctx.save();
+
+        switch (e.type) {
+            case 'slap': { // 거대 손바닥
+                let sz = 80 + (1 - p) * 40;
+                let a = p > 0.7 ? 1 : p / 0.7;
+                ctx.globalAlpha = a;
+                ctx.font = `${Math.floor(sz)}px serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                let slapX = e.x + Math.sin(e.timer * 0.5) * 5;
+                ctx.fillText('👋', slapX, e.y - 40);
+                // 충격 링
+                if (p > 0.5) {
+                    let ring = (1 - p) * 200;
+                    ctx.strokeStyle = `rgba(255,0,0,${(p - 0.5) * 2})`;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(e.x, e.y - 40, ring, 0, Math.PI * 2); ctx.stroke();
+                }
+                break;
+            }
+            case 'shout': { // 충격파 링 여러개
+                for (let i = 0; i < 4; i++) {
+                    let rr = (1 - p) * 300 + i * 30;
+                    let a = Math.max(0, p - i * 0.1);
+                    ctx.strokeStyle = `rgba(255,64,129,${a * 0.6})`;
+                    ctx.lineWidth = 3 - i * 0.5;
+                    ctx.beginPath(); ctx.arc(e.x, e.y, rr, -0.4, 0.4); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(e.x, e.y, rr, Math.PI - 0.4, Math.PI + 0.4); ctx.stroke();
+                }
+                // "여보!!!" 텍스트 확대
+                if (p > 0.5) {
+                    let ts = 20 + (1 - p) * 30;
+                    ctx.globalAlpha = p;
+                    ctx.fillStyle = '#FF4081';
+                    ctx.font = `bold ${Math.floor(ts)}px Malgun Gothic`;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('여보!!!', e.x + (1 - p) * 150, e.y);
+                }
+                break;
+            }
+            case 'holy': { // 빛기둥
+                let w = 50 + Math.sin(Date.now() * 0.01) * 10;
+                let a = p > 0.8 ? (1 - p) / 0.2 : (p < 0.2 ? p / 0.2 : 1);
+                let gd = ctx.createLinearGradient(e.x - w / 2, 0, e.x + w / 2, 0);
+                gd.addColorStop(0, 'rgba(255,215,0,0)');
+                gd.addColorStop(0.3, `rgba(255,215,0,${a * 0.4})`);
+                gd.addColorStop(0.5, `rgba(255,255,200,${a * 0.6})`);
+                gd.addColorStop(0.7, `rgba(255,215,0,${a * 0.4})`);
+                gd.addColorStop(1, 'rgba(255,215,0,0)');
+                ctx.fillStyle = gd;
+                ctx.fillRect(e.x - w / 2, 0, w, GROUND_Y);
+                // 십자가
+                ctx.globalAlpha = a;
+                ctx.font = '40px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('✝️', e.x, 100 + Math.sin(Date.now() * 0.003) * 10);
+                break;
+            }
+            case 'note': { // 개별 음표
+                ctx.globalAlpha = Math.min(p * 2, 1);
+                let notes = ['♪', '♫', '♬', '🎵'];
+                ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#AB47BC';
+                ctx.fillText(notes[e.noteIdx], e.x, e.y);
+                break;
+            }
+            case 'book': { // 펼쳐진 책
+                let s = 40 + (1 - p) * 30;
+                ctx.globalAlpha = p;
+                ctx.font = `${Math.floor(s)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('📖', e.x, e.y);
+                // 글자 흩뿌리기
+                ctx.font = '12px serif'; ctx.fillStyle = '#8B6914';
+                for (let i = 0; i < 3; i++) {
+                    let tx = e.x + Math.sin(Date.now() * 0.005 + i * 2) * 40;
+                    let ty = e.y - 20 + Math.cos(Date.now() * 0.004 + i) * 15;
+                    ctx.fillText(['말씀', '은혜', '아멘'][i], tx, ty);
+                }
+                break;
+            }
+            case 'money': { // 개별 돈
+                ctx.globalAlpha = Math.min(p * 2, 1);
+                ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.rot);
+                ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('💵', 0, 0);
+                ctx.restore();
+                break;
+            }
+            case 'food': { // 음식 연기
+                ctx.globalAlpha = p * 0.6;
+                for (let i = 0; i < 5; i++) {
+                    let fx = e.x + Math.sin(Date.now() * 0.003 + i * 1.5) * 30;
+                    let fy = e.y - (1 - p) * 50 - i * 15;
+                    ctx.fillStyle = `rgba(200,100,50,${p * 0.3})`;
+                    ctx.beginPath(); ctx.arc(fx, fy, 8 + i * 3, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.font = '30px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.globalAlpha = p;
+                ctx.fillText('🍜', e.x, e.y - 20 + Math.sin(Date.now() * 0.005) * 5);
+                break;
+            }
+            case 'key': { // 열쇠 잠금
+                ctx.globalAlpha = p;
+                let ks = 30 + Math.sin(Date.now() * 0.01) * 5;
+                ctx.font = `${Math.floor(ks)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('🔒', e.x, e.y);
+                // X 표시
+                ctx.strokeStyle = `rgba(255,0,0,${p})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(e.x - 20, e.y - 20); ctx.lineTo(e.x + 20, e.y + 20); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(e.x + 20, e.y - 20); ctx.lineTo(e.x - 20, e.y + 20); ctx.stroke();
+                break;
+            }
+            case 'pray': { // 기도 빛
+                let a = p > 0.8 ? (1 - p) / 0.2 : 1;
+                ctx.globalAlpha = a * 0.3;
+                let gd = ctx.createRadialGradient(e.x, GROUND_Y - 50, 0, e.x, GROUND_Y - 50, 150);
+                gd.addColorStop(0, 'rgba(255,50,150,0.5)');
+                gd.addColorStop(1, 'rgba(255,50,150,0)');
+                ctx.fillStyle = gd;
+                ctx.beginPath(); ctx.arc(e.x, GROUND_Y - 50, 150, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = a;
+                ctx.font = '36px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('⛪', e.x, 60 + Math.sin(Date.now() * 0.003) * 8);
+                break;
+            }
+            case 'pray_hand': {
+                if (e.delay > 0) break;
+                ctx.globalAlpha = e.timer / e.maxTimer;
+                ctx.font = '28px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('🤲', e.x, e.y);
+                break;
+            }
+        }
+        ctx.restore();
+    });
+}
+
+// ========== NPC 차단자 그리기 ==========
+function drawNpcBlocker(npc) {
+    ctx.save();
+    ctx.translate(npc.x, npc.y);
+    let bounce = Math.sin(npc.frame * Math.PI / 2) * 3;
+    ctx.translate(0, bounce);
+
+    // 그림자
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 다리
+    let la = Math.sin(npc.frame * Math.PI / 2) * 25;
+    ctx.save(); ctx.translate(-5, -5); ctx.rotate(la * Math.PI / 180);
+    ctx.fillStyle = npc.color; ctx.fillRect(-3, 0, 6, 20);
+    ctx.restore();
+    ctx.save(); ctx.translate(5, -5); ctx.rotate(-la * Math.PI / 180);
+    ctx.fillStyle = npc.color; ctx.fillRect(-3, 0, 6, 20);
+    ctx.restore();
+
+    // 몸통
+    ctx.fillStyle = npc.color;
+    ctx.fillRect(-12, -38, 24, 33);
+
+    // 머리
+    ctx.fillStyle = '#FFD5B8';
+    ctx.beginPath(); ctx.arc(0, -46, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(0, -49, 10, Math.PI, Math.PI * 2); ctx.fill();
+
+    // 팔 (막는 포즈)
+    if (npc.arrived) {
+        ctx.fillStyle = npc.color;
+        ctx.save(); ctx.translate(12, -30); ctx.rotate(0.8); ctx.fillRect(0, -3, 18, 6); ctx.restore();
+        ctx.save(); ctx.translate(-12, -30); ctx.rotate(-0.8); ctx.fillRect(-18, -3, 18, 6); ctx.restore();
+        // 말풍선
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        roundRect(ctx, -25, -78, 50, 22, 6); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(npc.name === '아이들' ? '안가!' : '멈춰!', 0, -67);
+    } else {
+        // 달리는 팔
+        ctx.fillStyle = npc.color;
+        ctx.save(); ctx.translate(12, -30); ctx.rotate(la * Math.PI / 180 * 0.5); ctx.fillRect(0, -3, 16, 6); ctx.restore();
+        ctx.save(); ctx.translate(-12, -30); ctx.rotate(-la * Math.PI / 180 * 0.5); ctx.fillRect(-16, -3, 16, 6); ctx.restore();
+    }
+
+    // 이름
+    ctx.fillStyle = npc.color; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(npc.name, 0, 6);
+
+    // 남은 시간 바
+    let pct = npc.timer / 200;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-15, -82, 30, 4);
+    ctx.fillStyle = npc.color; ctx.fillRect(-15, -82, 30 * Math.min(pct, 1), 4);
+
+    ctx.restore();
+}
+
+// ========== 캐릭터 그리기 ==========
+function drawWife(x, y, frame) {
+    ctx.save(); ctx.translate(x, y);
+    let b = Math.sin(frame * Math.PI / 2) * 3; ctx.translate(0, b);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2); ctx.fill();
+    let la = Math.sin(frame * Math.PI / 2) * 28;
+    ctx.save(); ctx.translate(-6, -6); ctx.rotate(la * Math.PI / 180); ctx.fillStyle = '#FFD5B8'; ctx.fillRect(-4, 0, 8, 22); ctx.fillStyle = '#FF69B4'; ctx.fillRect(-5, 18, 10, 6); ctx.restore();
+    ctx.save(); ctx.translate(6, -6); ctx.rotate(-la * Math.PI / 180); ctx.fillStyle = '#FFD5B8'; ctx.fillRect(-4, 0, 8, 22); ctx.fillStyle = '#FF69B4'; ctx.fillRect(-5, 18, 10, 6); ctx.restore();
+    ctx.fillStyle = '#E74C3C'; ctx.beginPath(); ctx.moveTo(-16, -8); ctx.lineTo(16, -8); ctx.lineTo(18, -38); ctx.lineTo(-18, -38); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#C0392B'; ctx.fillRect(-14, -22, 28, 4);
+    let as = Math.sin(frame * Math.PI / 2) * 15;
+    ctx.save(); ctx.translate(14, -33); ctx.rotate((25 + as) * Math.PI / 180); ctx.fillStyle = '#FFD5B8'; ctx.fillRect(0, -3, 24, 7); ctx.beginPath(); ctx.arc(26, 0, 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(-14, -33); ctx.rotate((-15 - as) * Math.PI / 180); ctx.fillStyle = '#FFD5B8'; ctx.fillRect(-24, -3, 24, 7); ctx.restore();
+    ctx.fillStyle = '#FFD5B8'; ctx.beginPath(); ctx.arc(0, -50, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(0, -54, 14, Math.PI, Math.PI * 2); ctx.fill(); ctx.fillRect(-14, -56, 5, 16); ctx.fillRect(9, -56, 5, 16);
+    ctx.fillStyle = '#000'; ctx.fillRect(-7, -53, 5, 4); ctx.fillRect(2, -53, 5, 4);
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-9, -58); ctx.lineTo(-2, -55); ctx.stroke(); ctx.beginPath(); ctx.moveTo(9, -58); ctx.lineTo(2, -55); ctx.stroke();
+    ctx.fillStyle = '#C0392B'; ctx.beginPath(); ctx.arc(0, -44, 4, 0, Math.PI); ctx.fill();
+    if (wife.speedBoost > 0.5) { ctx.fillStyle = `rgba(255,100,0,${0.4 + Math.sin(Date.now() * 0.01) * 0.3})`; ctx.font = '16px serif'; ctx.textAlign = 'center'; ctx.fillText('\uD83D\uDCA2', 0, -70); }
+    // 2단 점프 중 이펙트
+    if (wife.jumpCount >= 2) { ctx.fillStyle = `rgba(255,255,100,${0.5 + Math.sin(Date.now() * 0.02) * 0.3})`; ctx.font = '12px serif'; ctx.textAlign = 'center'; ctx.fillText('\u2728', -10, -5); ctx.fillText('\u2728', 10, -10); }
+    ctx.restore();
+}
+
+function drawHusband(x, y, frame, scared) {
+    ctx.save(); ctx.translate(x, y);
+    // hitTimer: 빨갛게 번쩍 + 깜빡이며 투명화
+    if (husband.hitTimer > 0) {
+        let blink = Math.sin(husband.hitTimer * 0.8) * 0.5 + 0.5; // 깜빡임
+        ctx.globalAlpha = 0.3 + blink * 0.5; // 0.3~0.8 사이 깜빡
+    }
+    let b = Math.sin(frame * Math.PI / 2) * (scared ? 5 : 3); ctx.translate(0, b);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2); ctx.fill();
+    let la = Math.sin(frame * Math.PI / 2) * (scared ? 35 : 28);
+    ctx.save(); ctx.translate(-6, -6); ctx.rotate(la * Math.PI / 180); ctx.fillStyle = '#2C3E50'; ctx.fillRect(-4, 0, 8, 24); ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-5, 20, 10, 6); ctx.restore();
+    ctx.save(); ctx.translate(6, -6); ctx.rotate(-la * Math.PI / 180); ctx.fillStyle = '#2C3E50'; ctx.fillRect(-4, 0, 8, 24); ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-5, 20, 10, 6); ctx.restore();
+    ctx.fillStyle = '#34495E'; ctx.fillRect(-14, -40, 28, 35);
+    ctx.fillStyle = '#ECF0F1'; ctx.fillRect(-4, -38, 8, 28);
+    ctx.fillStyle = '#E74C3C'; ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(4, -22); ctx.lineTo(0, -17); ctx.lineTo(-4, -22); ctx.closePath(); ctx.fill();
+    let as2 = Math.sin(frame * Math.PI / 2) * 30;
+    ctx.save(); ctx.translate(14, -33); ctx.rotate(as2 * Math.PI / 180); ctx.fillStyle = '#34495E'; ctx.fillRect(0, -3, 20, 7); ctx.restore();
+    ctx.save(); ctx.translate(-14, -33); ctx.rotate(-as2 * Math.PI / 180); ctx.fillStyle = '#34495E'; ctx.fillRect(-20, -3, 20, 7); ctx.restore();
+    ctx.fillStyle = '#FFD5B8'; ctx.beginPath(); ctx.arc(0, -50, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2C2C2C'; ctx.beginPath(); ctx.arc(0, -54, 13, Math.PI, Math.PI * 2); ctx.fill();
+    if (scared) {
+        ctx.fillStyle = '#FFF'; ctx.beginPath(); ctx.arc(-5, -51, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -51, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-5, -51, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -51, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, -42, 5, 0, Math.PI); ctx.fill();
+        husband.sweatDrops.forEach(d => { ctx.fillStyle = `rgba(100,200,255,${d.life})`; ctx.beginPath(); ctx.moveTo(d.ox, d.oy - 4); ctx.quadraticCurveTo(d.ox + 3, d.oy, d.ox, d.oy + 3); ctx.quadraticCurveTo(d.ox - 3, d.oy, d.ox, d.oy - 4); ctx.fill(); });
+        ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.fillText('\uD83D\uDE30', 0, -68 + Math.sin(Date.now() * 0.005) * 4);
+    } else {
+        ctx.fillStyle = '#000'; ctx.fillRect(-7, -53, 4, 4); ctx.fillRect(3, -53, 4, 4);
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, -44, 4, 0.1, Math.PI - 0.1); ctx.stroke();
+    }
+    // 피격 빨간 틴트
+    if (husband.hitTimer > 0) {
+        let ra = Math.min(husband.hitTimer / 20, 1) * 0.5;
+        ctx.globalAlpha = ra;
+        ctx.fillStyle = '#FF0000';
+        ctx.fillRect(-18, -65, 36, 70);
+        ctx.beginPath(); ctx.arc(0, -50, 15, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawObstacle(obs) {
+    ctx.save();
+    ctx.globalAlpha = obs.passed ? 0.15 : 0.4;
+    ctx.translate(obs.x, obs.y);
+    ctx.strokeStyle = 'rgba(150,150,150,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.strokeRect(-obs.width / 2 - 2, -obs.height - 22, obs.width + 4, obs.height + 22); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#777'; ctx.fillRect(-obs.width / 2, -obs.height, obs.width, obs.height);
+    if (obs.collar) { ctx.fillStyle = '#BBB'; ctx.fillRect(-8, -obs.height + 2, 16, 5); }
+    ctx.fillStyle = '#C8B8A8'; ctx.beginPath(); ctx.arc(0, -obs.height - 8, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#666'; ctx.beginPath(); ctx.arc(0, -obs.height - 11, 11, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#444'; ctx.fillRect(-5, -obs.height - 10, 3, 3); ctx.fillRect(2, -obs.height - 10, 3, 3);
+    if (!obs.passed) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#888'; ctx.font = '9px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('- 자동통과 -', 0, -obs.height - 22); }
+    ctx.restore();
+}
+
+// ========== 배경 ==========
+function drawBackground() {
+    const s = STAGES[currentStage];
+    let g = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    g.addColorStop(0, s.bgColor1); g.addColorStop(1, lightenColor(s.bgColor1, 40));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, GROUND_Y);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    clouds.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, c.width * 0.25, 0, Math.PI * 2); ctx.arc(c.x + c.width * 0.2, c.y - 10, c.width * 0.2, 0, Math.PI * 2); ctx.arc(c.x + c.width * 0.4, c.y, c.width * 0.3, 0, Math.PI * 2); ctx.fill(); });
+    buildings.forEach(b => { let bx = ((b.x - bgScroll * 0.3) % (canvas.width + 200)); if (bx < -b.width) bx += canvas.width + 200; ctx.fillStyle = b.color; ctx.fillRect(bx, GROUND_Y - b.height, b.width, b.height); ctx.fillStyle = 'rgba(255,255,150,0.4)'; for (let wy = GROUND_Y - b.height + 15; wy < GROUND_Y - 10; wy += 22) for (let wx = bx + 8; wx < bx + b.width - 8; wx += 18) ctx.fillRect(wx, wy, 8, 10); });
+    let gg = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
+    gg.addColorStop(0, s.bgColor2); gg.addColorStop(1, darkenColor(s.bgColor2, 40));
+    ctx.fillStyle = gg; ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+    ctx.strokeStyle = darkenColor(s.bgColor2, 20); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(canvas.width, GROUND_Y); ctx.stroke();
+    let so = bgScroll % 60;
+    for (let gx = -so; gx < canvas.width + 30; gx += 60) { ctx.fillStyle = darkenColor(s.bgColor2, 10); ctx.fillRect(gx, GROUND_Y + 4, 12, 3); }
+}
+
+// ========== UI ==========
+function drawUI() {
+    const s = STAGES[currentStage];
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; roundRect(ctx, 10, 8, canvas.width - 20, 55, 8); ctx.fill();
+    ctx.fillStyle = '#FFD700'; ctx.font = 'bold 16px Malgun Gothic'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(s.name, 20, 28);
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 14px Malgun Gothic'; ctx.textAlign = 'right'; ctx.fillText(`점수: ${score}`, canvas.width - 20, 24);
+    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText(`총점: ${totalScore + score}`, canvas.width - 20, 44);
+
+    let barX = 200, barW = 500, barY = 40, barH = 14;
+    let ratio = 1 - Math.min(distance / (s.catchDist + 200), 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; roundRect(ctx, barX, barY, barW, barH, 7); ctx.fill();
+    let bc = ratio > 0.7 ? '#2ECC71' : ratio > 0.4 ? '#F39C12' : '#E74C3C';
+    if (barW * ratio > 1) { ctx.fillStyle = bc; roundRect(ctx, barX, barY, Math.max(barW * ratio, 14), barH, 7); ctx.fill(); }
+    ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\uD83D\uDC69', barX + Math.max(barW * ratio, 10), barY - 8);
+    ctx.fillText('\uD83C\uDFC3', barX + barW, barY - 8);
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 10px Malgun Gothic'; ctx.fillText(`${Math.max(0, Math.floor(distance))}m`, barX + barW / 2, barY + 7);
+
+    if (comboCount > 1) { ctx.fillStyle = `rgba(255,215,0,${0.7 + Math.sin(Date.now() * 0.01) * 0.3})`; ctx.font = `bold ${16 + comboCount * 2}px Malgun Gothic`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(`${comboCount}x 콤보!`, canvas.width / 2, 68); }
+
+    if (husband.slowEffects.length > 0) {
+        let ph = 18 + husband.slowEffects.length * 16;
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(ctx, 10, 70, 220, ph, 6); ctx.fill();
+        ctx.fillStyle = '#FF6B6B'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('남편 감속:', 16, 74);
+        husband.slowEffects.forEach((e, i) => { ctx.fillStyle = '#FFF'; ctx.font = '10px Malgun Gothic'; ctx.fillText(`${e.name} (${(e.remaining / 60).toFixed(1)}s)`, 22, 90 + i * 16); });
+    }
+
+    // 범례
+    let lx = canvas.width - 185, ly = canvas.height - 65;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; roundRect(ctx, lx, ly, 175, 55, 6); ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#00FF66'; ctx.font = 'bold 12px Malgun Gothic'; ctx.fillText('\u25CF', lx + 10, ly + 16);
+    ctx.fillStyle = '#88FF88'; ctx.font = '11px Malgun Gothic'; ctx.fillText('빛나는 것 = 먹기!', lx + 25, ly + 16);
+    ctx.fillStyle = '#888'; ctx.font = 'bold 12px Malgun Gothic'; ctx.fillText('\u25CB', lx + 10, ly + 38);
+    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText('흐린 사람 = 자동 통과', lx + 25, ly + 38);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '11px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('\u2191/Space: 점프(2단!) | \u2192: 가속', canvas.width / 2, canvas.height - 8);
+}
+
+function drawTutorial() {
+    if (stageTimer > 300) return;
+    let a = stageTimer < 240 ? 0.9 : (300 - stageTimer) / 60;
+    ctx.save(); ctx.globalAlpha = a;
+    let pw = 500, ph = 120, px = (canvas.width - pw) / 2, py = canvas.height / 2 - 100;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)'; roundRect(ctx, px, py, pw, ph, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,255,100,0.5)'; ctx.lineWidth = 2; roundRect(ctx, px, py, pw, ph, 12); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Malgun Gothic'; ctx.fillText('아이템을 먹어서 남편을 느리게 만드세요!', canvas.width / 2, py + 25);
+    ctx.fillStyle = '#00FF66'; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('\u25CF', canvas.width / 2 - 160, py + 58);
+    ctx.fillStyle = '#88FF88'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('초록빛 = 아이템 (먹으세요!)', canvas.width / 2 - 30, py + 58);
+    ctx.fillStyle = '#777'; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('\u25CB', canvas.width / 2 - 160, py + 90);
+    ctx.fillStyle = '#AAA'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('흐린 사람 = 신경 쓸 필요 없음', canvas.width / 2 - 20, py + 90);
+    ctx.restore();
+}
+
+function drawMessage() {
+    if (messageTimer <= 0) return;
+    let a = Math.min(messageTimer / 30, 1);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.font = 'bold 18px Malgun Gothic';
+    let w = ctx.measureText(messageText).width;
+    let my = 160;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'; roundRect(ctx, canvas.width / 2 - w / 2 - 20, my - 18, w + 40, 36, 8); ctx.fill();
+    ctx.fillStyle = messageColor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(messageText, canvas.width / 2, my);
+    ctx.restore();
+}
+
+// ========== 메뉴/인트로/클리어/오버/엔딩 화면 ==========
+function drawMenu() {
+    let g = ctx.createLinearGradient(0, 0, 0, canvas.height); g.addColorStop(0, '#1a1a2e'); g.addColorStop(0.5, '#16213e'); g.addColorStop(1, '#0f3460');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 30; i++) { let px = (Date.now() * 0.02 * (i + 1) * 0.1) % canvas.width; let py = (Math.sin(Date.now() * 0.001 + i) * 0.5 + 0.5) * canvas.height; ctx.fillStyle = `rgba(233,69,96,${0.1 + Math.sin(i) * 0.1})`; ctx.beginPath(); ctx.arc(px, py, 2 + Math.sin(i * 2) * 2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#E94560'; ctx.font = 'bold 52px Malgun Gothic'; ctx.fillText('심방 탈출!', canvas.width / 2, 120);
+    ctx.fillStyle = '#FFF'; ctx.font = '22px Malgun Gothic'; ctx.fillText('도망가는 남편 잡기 대작전', canvas.width / 2, 165);
+    drawWife(canvas.width / 2 - 80, 280, Math.floor(Date.now() / 150) % 4);
+    drawHusband(canvas.width / 2 + 80, 280, Math.floor(Date.now() / 150) % 4, true);
+    ctx.fillStyle = '#FFD700'; ctx.font = '28px serif'; ctx.fillText('>>>', canvas.width / 2, 258);
+
+    // 규칙 설명
+    ctx.fillStyle = 'rgba(0,50,0,0.6)'; roundRect(ctx, canvas.width / 2 - 230, 315, 200, 48, 8); ctx.fill();
+    ctx.strokeStyle = '#00FF66'; ctx.lineWidth = 2; roundRect(ctx, canvas.width / 2 - 230, 315, 200, 48, 8); ctx.stroke();
+    ctx.fillStyle = '#00FF66'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('\u25CF 초록빛 아이템', canvas.width / 2 - 130, 332);
+    ctx.fillStyle = '#88FF88'; ctx.font = '12px Malgun Gothic'; ctx.fillText('\u2192 먹으면 남편이 느려짐!', canvas.width / 2 - 130, 352);
+    ctx.fillStyle = 'rgba(50,50,50,0.6)'; roundRect(ctx, canvas.width / 2 + 30, 315, 200, 48, 8); ctx.fill();
+    ctx.fillStyle = '#888'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('\u25CB 흐린 사람', canvas.width / 2 + 130, 332);
+    ctx.fillStyle = '#AAA'; ctx.font = '12px Malgun Gothic'; ctx.fillText('\u2192 그냥 통과 (무시!)', canvas.width / 2 + 130, 352);
+
+    // 샘플 아이템
+    let si = ITEMS.filter((_, i) => [0, 1, 3, 4, 6, 9, 12, 13].includes(i));
+    let sx = canvas.width / 2 - (si.length - 1) * 32;
+    si.forEach((item, i) => {
+        ctx.save();
+        let ix = sx + i * 64, iy = 405, bob = Math.sin(Date.now() * 0.003 + i * 0.8) * 4;
+        ctx.strokeStyle = `rgba(0,255,100,${0.4 + Math.sin(Date.now() * 0.005 + i) * 0.2})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ix, iy + bob, 18, 0, Math.PI * 2); ctx.stroke();
+        let fn = getShapeFn(item.shape);
+        let gd = ctx.createRadialGradient(ix, iy + bob, 0, ix, iy + bob, 14);
+        gd.addColorStop(0, lightenColor(item.color, 40)); gd.addColorStop(1, item.color);
+        ctx.fillStyle = gd; fn(ix, iy + bob, 14); ctx.fill();
+        ctx.font = '12px serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(item.emoji, ix, iy + bob + 1);
+        ctx.restore();
+    });
+
+    let pu = Math.sin(Date.now() * 0.005) * 0.15 + 0.85;
+    ctx.fillStyle = `rgba(233,69,96,${pu})`; roundRect(ctx, canvas.width / 2 - 140, 450, 280, 50, 12); ctx.fill();
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 22px Malgun Gothic'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillText('클릭 / 터치하여 시작!', canvas.width / 2, 475);
+    ctx.fillStyle = '#777'; ctx.font = '13px Malgun Gothic'; ctx.fillText('\u2191/Space: 점프(2단!) | \u2192: 가속', canvas.width / 2, 530);
+}
+
+function drawStoryIntro() {
+    const s = STAGES[currentStage];
+    ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#E94560'; ctx.font = 'bold 44px Malgun Gothic'; ctx.fillText(s.name, canvas.width / 2, 170);
+    ctx.fillStyle = '#FFD700'; ctx.font = '22px Malgun Gothic'; ctx.fillText(s.story, canvas.width / 2, 250);
+    ctx.fillStyle = '#FF6B6B'; ctx.font = '16px Malgun Gothic'; ctx.fillText(`남편 속도: ${'\uD83C\uDFC3'.repeat(Math.min(Math.ceil(s.husbandSpeed / 1.5), 5))}`, canvas.width / 2, 310);
+    ctx.fillStyle = '#AAA'; ctx.fillText(`출발 거리: ${s.catchDist}m`, canvas.width / 2, 340);
+    ctx.fillStyle = '#00FF66'; ctx.font = 'bold 14px Malgun Gothic';
+    ctx.fillText('\u25CF 초록빛 = 먹기!       \u25CB 흐린 사람 = 무시', canvas.width / 2, 390);
+    drawWife(canvas.width / 2 - 60, 480, Math.floor(Date.now() / 150) % 4);
+    drawHusband(canvas.width / 2 + 60, 480, Math.floor(Date.now() / 150) % 4, false);
+    let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('클릭 / 터치하여 출발!', canvas.width / 2, 550);
+}
+
+function drawStageClear() {
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 40; i++) { let px = (Date.now() * 0.05 * (i + 1) * 0.05 + i * 100) % canvas.width; let py = (Date.now() * 0.02 * (i + 1) * 0.03 + i * 50) % canvas.height; ctx.fillStyle = ['#FFD700', '#E94560', '#2ECC71', '#3498DB', '#9B59B6'][i % 5]; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#2ECC71'; ctx.font = 'bold 52px Malgun Gothic'; ctx.fillText('잡았다!!!', canvas.width / 2, 160);
+    ctx.fillStyle = '#FFD700'; ctx.font = '26px Malgun Gothic'; ctx.fillText(STAGES[currentStage].name + ' 클리어!', canvas.width / 2, 220);
+    ctx.fillStyle = '#FFF'; ctx.font = '20px Malgun Gothic'; ctx.fillText(`스테이지 점수: ${score}`, canvas.width / 2, 280); ctx.fillText(`누적 점수: ${totalScore + score}`, canvas.width / 2, 315);
+    ctx.font = '60px serif'; ctx.fillText('\uD83D\uDC69\u200D\u2764\uFE0F\u200D\uD83D\uDC68', canvas.width / 2, 400);
+    let msgs = ['"여보, 이제 어딜 도망가려고!"', '"다음부턴 심방 끝까지 있어!"', '"도망은 실패야, 여보~"', '"내가 잡을 줄 알았지?"', '"목사님한테 이를 거야!"'];
+    ctx.fillStyle = '#FFB6C1'; ctx.font = '18px Malgun Gothic'; ctx.fillText(msgs[currentStage % msgs.length], canvas.width / 2, 460);
+    let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 18px Malgun Gothic';
+    ctx.fillText(currentStage < STAGES.length - 1 ? '클릭 / 터치하여 다음 스테이지!' : '클릭 / 터치하여 엔딩 보기!', canvas.width / 2, 530);
+}
+
+function drawGameOver() {
+    ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText('남편이 도망갔다...', canvas.width / 2, 180);
+    ctx.font = '80px serif'; ctx.fillText('\uD83C\uDFC3\uD83D\uDCA8', canvas.width / 2, 300);
+    let msgs = ['"자기야~ 나 PC방 갔다올게~"', '"심방은 다음에 하지 뭐~"', '"탈출 성공!"', '"낚시 가야지~"'];
+    ctx.fillStyle = '#AAA'; ctx.font = '20px Malgun Gothic'; ctx.fillText(msgs[Math.floor(Date.now() / 3000) % msgs.length], canvas.width / 2, 390);
+    ctx.fillStyle = '#FFD700'; ctx.font = '18px Malgun Gothic'; ctx.fillText(`점수: ${score}`, canvas.width / 2, 440);
+    let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('클릭 / 터치하여 재도전!', canvas.width / 2, 510);
+}
+
+function drawEnding() {
+    let g = ctx.createLinearGradient(0, 0, 0, canvas.height); g.addColorStop(0, '#FF6B6B'); g.addColorStop(0.5, '#FFB6C1'); g.addColorStop(1, '#FFD700');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '24px serif';
+    for (let i = 0; i < 20; i++) { let hx = (Date.now() * 0.03 * (i + 1) * 0.05 + i * 80) % canvas.width; let hy = (Date.now() * 0.015 * (i + 1) * 0.03 + i * 60) % canvas.height; ctx.globalAlpha = 0.4 + Math.sin(i + Date.now() * 0.002) * 0.3; ctx.fillText('\u2764\uFE0F', hx, hy); }
+    ctx.globalAlpha = 1; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText('축하합니다!', canvas.width / 2, 110);
+    ctx.fillStyle = '#2C3E50'; ctx.font = '22px Malgun Gothic'; ctx.fillText('모든 스테이지를 클리어했습니다!', canvas.width / 2, 160);
+    ctx.font = '80px serif'; ctx.fillText('\uD83D\uDC69\u200D\u2764\uFE0F\u200D\uD83D\uDC68', canvas.width / 2, 260);
+    ctx.fillStyle = '#2C3E50'; ctx.font = '20px Malgun Gothic'; ctx.fillText('남편은 다시는 심방에서 도망가지 않겠다고', canvas.width / 2, 330); ctx.fillText('굳게 약속했습니다... (과연?)', canvas.width / 2, 360);
+    ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 28px Malgun Gothic'; ctx.fillText(`최종 점수: ${totalScore}`, canvas.width / 2, 420);
+    let grade = totalScore > 50000 ? 'S' : totalScore > 30000 ? 'A' : totalScore > 15000 ? 'B' : 'C';
+    ctx.fillStyle = grade === 'S' ? '#FFD700' : grade === 'A' ? '#2ECC71' : grade === 'B' ? '#3498DB' : '#AAA';
+    ctx.font = 'bold 56px Malgun Gothic'; ctx.fillText(`등급: ${grade}`, canvas.width / 2, 490);
+    let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(44,62,80,${pu})`; ctx.font = 'bold 18px Malgun Gothic'; ctx.fillText('클릭 / 터치하여 처음부터!', canvas.width / 2, 555);
+}
+
+// ========== 유틸 ==========
+function roundRect(c, x, y, w, h, r) { if (w < r * 2) r = w / 2; if (h < r * 2) r = h / 2; c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r); c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath(); }
+function lightenColor(h, a) { if (!h.startsWith('#') || h.length < 7) return h; return `rgb(${Math.min(255, parseInt(h.slice(1, 3), 16) + a)},${Math.min(255, parseInt(h.slice(3, 5), 16) + a)},${Math.min(255, parseInt(h.slice(5, 7), 16) + a)})`; }
+function darkenColor(h, a) { if (!h.startsWith('#') || h.length < 7) return h; return `rgb(${Math.max(0, parseInt(h.slice(1, 3), 16) - a)},${Math.max(0, parseInt(h.slice(3, 5), 16) - a)},${Math.max(0, parseInt(h.slice(5, 7), 16) - a)})`; }
+
+// ========== 렌더 ==========
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (gameState === 'menu') { drawMenu(); return; }
+    if (gameState === 'storyIntro') { drawStoryIntro(); return; }
+    if (gameState === 'stageClear') { drawStageClear(); return; }
+    if (gameState === 'gameOver') { drawGameOver(); return; }
+    if (gameState === 'ending') { drawEnding(); return; }
+
+    ctx.save();
+    if (shakeTimer > 0) ctx.translate((Math.random() - 0.5) * shakeIntensity, (Math.random() - 0.5) * shakeIntensity);
+
+    drawBackground();
+    obstacles.forEach(drawObstacle);
+    items.forEach(drawItem);
+
+    // NPC 차단자 (남편 앞)
+    npcBlockers.forEach(drawNpcBlocker);
+
+    drawHusband(husband.x, husband.y, husband.frame, husband.scared);
+    drawWife(wife.x, wife.y, wife.frame);
+
+    // 특수 이펙트 (캐릭터 위에 렌더)
+    drawActiveEffects();
+
+    // 가속 이펙트
+    if (wife.speedBoost > 0.3) { for (let i = 0; i < 3; i++) { ctx.fillStyle = `rgba(233,69,96,${wife.speedBoost * 0.15})`; ctx.beginPath(); ctx.arc(wife.x - 20 - Math.random() * 25, wife.y - 25 + Math.random() * 30, 3 + Math.random() * 4, 0, Math.PI * 2); ctx.fill(); } }
+
+    // 파티클
+    particles.forEach(p => { ctx.globalAlpha = p.life; if (p.isText) { ctx.fillStyle = p.color; ctx.font = `bold ${p.size}px Malgun Gothic`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.text, p.x, p.y); } else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; });
+
+    ctx.restore();
+
+    drawMessage();
+    drawUI();
+    drawTutorial();
+}
+
+function gameLoop() { update(); render(); requestAnimationFrame(gameLoop); }
+gameLoop();
+</script>
+</body>
+</html>
