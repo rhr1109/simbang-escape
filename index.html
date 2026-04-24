@@ -2264,10 +2264,11 @@ function drawMenu() {
         ctx.font = '11px Malgun Gothic';
         ctx.fillText(d.desc, r.x + 70, r.y + 55);
 
-        // 12 STAGES 표시
+        // 스테이지 수 표시 (CRAZY는 14, 나머지는 12)
         ctx.fillStyle = isSelected ? d.color : '#888';
         ctx.font = 'bold 10px Malgun Gothic';
-        ctx.fillText('▸ 12 STAGES', r.x + 70, r.y + 73);
+        let stageCount = mode === 'crazy' ? 14 : 12;
+        ctx.fillText(`▸ ${stageCount} STAGES`, r.x + 70, r.y + 73);
 
         // 난이도 막대
         let bars = i + 1;
@@ -2590,7 +2591,7 @@ function drawEnding() {
     ctx.fillStyle = dmodeE.color; ctx.font = 'bold 16px Malgun Gothic';
     ctx.fillText(`★ ${dmodeE.emoji} ${dmodeE.name} MODE 클리어! ★`, cx, cy - 200);
     ctx.fillStyle = '#FFF'; ctx.font = 'bold 42px Malgun Gothic'; ctx.fillText('축하합니다!', cx, cy - 165);
-    ctx.fillStyle = '#FFD700'; ctx.font = '18px Malgun Gothic'; ctx.fillText('12개 스테이지를 모두 클리어했습니다!', cx, cy - 125);
+    ctx.fillStyle = '#FFD700'; ctx.font = '18px Malgun Gothic'; ctx.fillText(`${getActiveStages().length}개 스테이지를 모두 클리어했습니다!`, cx, cy - 125);
     ctx.font = '70px serif'; ctx.fillText('\uD83D\uDC69\u200D\u2764\uFE0F\u200D\uD83D\uDC68', cx, cy - 55);
     ctx.fillStyle = '#FFF'; ctx.font = '18px Malgun Gothic';
     ctx.fillText('남편은 다시는 심방에서 도망가지 않겠다고', cx, cy + 10);
