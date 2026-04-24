@@ -1,0 +1,13 @@
+{
+  "name": "simbang-escape",
+  "version": "1.1.0",
+  "description": "심방런 - 도망가는 남편을 잡아라! 2D 러너 게임",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render-bgm": "node tools/render-bgm.mjs"
+  },
+  "devDependencies": {
+    "@breezystack/lamejs": "^1.2.7"
+  }
+}
