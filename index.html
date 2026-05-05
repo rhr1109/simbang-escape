@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>심방런 - 도망가는 남편을 잡아라!</title>
+    <title>SimbangRun - Catch the Runaway Husband!</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -76,6 +76,28 @@ canvas.height = 600;
 const GROUND_Y = 500;
 const GRAVITY = 0.85;
 const JUMP_FORCE = -15;
+
+// ========== 언어 / Localization (default: English) ==========
+let currentLang = 'en';
+try {
+    const _saved = localStorage.getItem('simbangLang');
+    if (_saved === 'ko' || _saved === 'en') currentLang = _saved;
+} catch (e) {}
+function tr(ko, en) { return currentLang === 'ko' ? ko : en; }
+function setLang(lang) {
+    if (lang !== 'ko' && lang !== 'en') return;
+    if (currentLang === lang) return;
+    currentLang = lang;
+    try { localStorage.setItem('simbangLang', lang); } catch (e) {}
+    applyLangToDOM();
+}
+function applyLangToDOM() {
+    document.documentElement.lang = currentLang;
+    document.title = tr('심방런 - 도망가는 남편을 잡아라!', 'SimbangRun - Catch the Runaway Husband!');
+    if (typeof btnJump !== 'undefined' && btnJump)   btnJump.textContent  = tr('점프', 'JUMP');
+    if (typeof btnBoost !== 'undefined' && btnBoost) btnBoost.textContent = tr('가속', 'ACC');
+    if (typeof btnAction !== 'undefined' && btnAction) btnAction.textContent = tr('시작', 'START');
+}
 
 // ========== 배경음악 (Web Audio API) ==========
 let audioCtx = null;
@@ -239,45 +261,54 @@ function playBgm(stageIdx) {
 
 // ========== 아이템 정의 ==========
 const ITEMS = [
-    { name: '목사님의 전화', emoji: '📞', color: '#FFD700', color2: '#FFA500', slowAmount: 2.0, duration: 180, desc: '목사님이 전화로 설교!', tier: 1, shape: 'circle', size: 26, effectType: 'npc_block', npcName: '목사님', npcColor: '#2C3E50', npcEmoji: '📞' },
-    { name: '등짝 스매싱', emoji: '👋', color: '#FF2222', color2: '#CC0000', slowAmount: 3.5, duration: 120, desc: '등짝 스매싱!', tier: 1, shape: 'burst', size: 32, effectType: 'slap' },
-    { name: '설교', emoji: '📖', color: '#8B6914', color2: '#654321', slowAmount: 1.5, duration: 240, desc: '설교가 발을 묶는다!', tier: 1, shape: 'book', size: 28, effectType: 'book' },
-    { name: '성경', emoji: '✝️', color: '#DAA520', color2: '#B8860B', slowAmount: 2.0, duration: 200, desc: '성경 말씀의 힘!', tier: 1, shape: 'cross', size: 28, effectType: 'holy' },
-    { name: '아내의 고함', emoji: '📢', color: '#FF4081', color2: '#E91E63', slowAmount: 2.5, duration: 150, desc: '"여보!!! 거기 서!!!"', tier: 2, shape: 'shockwave', size: 30, effectType: 'shout' },
-    { name: '찬송가', emoji: '🎵', color: '#AB47BC', color2: '#7B1FA2', slowAmount: 1.8, duration: 220, desc: '찬송가가 울려퍼진다!', tier: 2, shape: 'note', size: 26, effectType: 'notes' },
-    { name: '권사님의 잔소리', emoji: '👵', color: '#FF8F00', color2: '#E65100', slowAmount: 2.2, duration: 190, desc: '권사님이 달려간다!', tier: 2, shape: 'hexagon', size: 28, effectType: 'npc_block', npcName: '권사님', npcColor: '#8E44AD', npcEmoji: '🗣️' },
-    { name: '헌금봉투', emoji: '💰', color: '#43A047', color2: '#2E7D32', slowAmount: 1.0, duration: 300, desc: '헌금을 안 냈잖아!', tier: 1, shape: 'diamond', size: 24, effectType: 'money' },
-    { name: '떡볶이', emoji: '🍜', color: '#E53935', color2: '#B71C1C', slowAmount: 1.5, duration: 180, desc: '떡볶이 냄새에...', tier: 2, shape: 'circle', size: 26, effectType: 'food' },
-    { name: '주일학교 아이들', emoji: '👶', color: '#1E88E5', color2: '#1565C0', slowAmount: 2.0, duration: 160, desc: '아이들이 달려간다!', tier: 3, shape: 'star', size: 30, effectType: 'npc_block', npcName: '아이들', npcColor: '#1E88E5', npcEmoji: '👶' },
-    { name: '집사님의 기도', emoji: '🙏', color: '#FDD835', color2: '#F9A825', slowAmount: 2.8, duration: 140, desc: '집사님이 기도하며 막는다!', tier: 3, shape: 'shield', size: 30, effectType: 'npc_block', npcName: '집사님', npcColor: '#2980B9', npcEmoji: '🙏' },
-    { name: '버스 열쇠', emoji: '🔑', color: '#00ACC1', color2: '#00838F', slowAmount: 3.0, duration: 130, desc: '도망갈 차가 없다!', tier: 3, shape: 'diamond', size: 28, effectType: 'key' },
-    { name: '안수기도', emoji: '🤲', color: '#FFD700', color2: '#FF8F00', slowAmount: 4.0, duration: 100, desc: '안수기도! 꼼짝 못함!', tier: 4, shape: 'holystar', size: 36, effectType: 'holy' },
-    { name: '전교인 기도회', emoji: '⛪', color: '#E91E63', color2: '#880E4F', slowAmount: 5.0, duration: 80, desc: '전교인이 기도!', tier: 4, shape: 'church', size: 40, effectType: 'pray' },
+    { name: '목사님의 전화', name_en: "Pastor's Call",        emoji: '📞', color: '#FFD700', color2: '#FFA500', slowAmount: 2.0, duration: 180, desc: '목사님이 전화로 설교!',  desc_en: 'Pastor preaches over the phone!',     tier: 1, shape: 'circle',   size: 26, effectType: 'npc_block', npcName: '목사님',  npcName_en: 'Pastor',       npcColor: '#2C3E50', npcEmoji: '📞' },
+    { name: '등짝 스매싱',    name_en: 'Back Smack',           emoji: '👋', color: '#FF2222', color2: '#CC0000', slowAmount: 3.5, duration: 120, desc: '등짝 스매싱!',         desc_en: 'Back smack!',                         tier: 1, shape: 'burst',    size: 32, effectType: 'slap' },
+    { name: '설교',          name_en: 'Sermon',               emoji: '📖', color: '#8B6914', color2: '#654321', slowAmount: 1.5, duration: 240, desc: '설교가 발을 묶는다!',  desc_en: 'The sermon stops him cold!',          tier: 1, shape: 'book',     size: 28, effectType: 'book' },
+    { name: '성경',          name_en: 'Bible',                emoji: '✝️', color: '#DAA520', color2: '#B8860B', slowAmount: 2.0, duration: 200, desc: '성경 말씀의 힘!',       desc_en: 'Power of the Word!',                  tier: 1, shape: 'cross',    size: 28, effectType: 'holy' },
+    { name: '아내의 고함',    name_en: "Wife's Shout",         emoji: '📢', color: '#FF4081', color2: '#E91E63', slowAmount: 2.5, duration: 150, desc: '"여보!!! 거기 서!!!"', desc_en: '"Honey!!! Stop right there!!!"',     tier: 2, shape: 'shockwave',size: 30, effectType: 'shout' },
+    { name: '찬송가',        name_en: 'Hymn',                 emoji: '🎵', color: '#AB47BC', color2: '#7B1FA2', slowAmount: 1.8, duration: 220, desc: '찬송가가 울려퍼진다!',  desc_en: 'A hymn rings out!',                   tier: 2, shape: 'note',     size: 26, effectType: 'notes' },
+    { name: '권사님의 잔소리', name_en: "Elder's Nag",         emoji: '👵', color: '#FF8F00', color2: '#E65100', slowAmount: 2.2, duration: 190, desc: '권사님이 달려간다!',   desc_en: 'Elder rushes in!',                    tier: 2, shape: 'hexagon',  size: 28, effectType: 'npc_block', npcName: '권사님',  npcName_en: 'Elder',        npcColor: '#8E44AD', npcEmoji: '🗣️' },
+    { name: '헌금봉투',      name_en: 'Offering Envelope',    emoji: '💰', color: '#43A047', color2: '#2E7D32', slowAmount: 1.0, duration: 300, desc: '헌금을 안 냈잖아!',    desc_en: 'You skipped the offering!',           tier: 1, shape: 'diamond',  size: 24, effectType: 'money' },
+    { name: '떡볶이',        name_en: 'Tteokbokki',           emoji: '🍜', color: '#E53935', color2: '#B71C1C', slowAmount: 1.5, duration: 180, desc: '떡볶이 냄새에...',     desc_en: 'The smell of tteokbokki...',          tier: 2, shape: 'circle',   size: 26, effectType: 'food' },
+    { name: '주일학교 아이들', name_en: 'Sunday School Kids',  emoji: '👶', color: '#1E88E5', color2: '#1565C0', slowAmount: 2.0, duration: 160, desc: '아이들이 달려간다!',   desc_en: 'The kids charge in!',                 tier: 3, shape: 'star',     size: 30, effectType: 'npc_block', npcName: '아이들',  npcName_en: 'Kids',         npcColor: '#1E88E5', npcEmoji: '👶' },
+    { name: '집사님의 기도',  name_en: "Deacon's Prayer",      emoji: '🙏', color: '#FDD835', color2: '#F9A825', slowAmount: 2.8, duration: 140, desc: '집사님이 기도하며 막는다!', desc_en: 'Deacon blocks with prayer!',     tier: 3, shape: 'shield',   size: 30, effectType: 'npc_block', npcName: '집사님',  npcName_en: 'Deacon',       npcColor: '#2980B9', npcEmoji: '🙏' },
+    { name: '버스 열쇠',      name_en: 'Bus Keys',             emoji: '🔑', color: '#00ACC1', color2: '#00838F', slowAmount: 3.0, duration: 130, desc: '도망갈 차가 없다!',    desc_en: 'No car to escape with!',              tier: 3, shape: 'diamond',  size: 28, effectType: 'key' },
+    { name: '안수기도',      name_en: 'Laying On of Hands',   emoji: '🤲', color: '#FFD700', color2: '#FF8F00', slowAmount: 4.0, duration: 100, desc: '안수기도! 꼼짝 못함!', desc_en: 'Laying on of hands! Frozen!',         tier: 4, shape: 'holystar', size: 36, effectType: 'holy' },
+    { name: '전교인 기도회',  name_en: 'All-Church Prayer',    emoji: '⛪', color: '#E91E63', color2: '#880E4F', slowAmount: 5.0, duration: 80,  desc: '전교인이 기도!',       desc_en: 'The whole church prays!',             tier: 4, shape: 'church',   size: 40, effectType: 'pray' },
 ];
+
+// ========== Localization 헬퍼 (data 테이블 접근) ==========
+function getItemName(item) { return tr(item.name, item.name_en || item.name); }
+function getItemDesc(item) { return tr(item.desc, item.desc_en || item.desc); }
+function getNpcNameI18n(item) { return tr(item.npcName, item.npcName_en || item.npcName); }
+function getStageName(s) { return tr(s.name, s.name_en || s.name); }
+function getStageStory(s) { return tr(s.story, s.story_en || s.story); }
+function getObsName(o) { return tr(o.name, o.name_en || o.name); }
+function getModeDesc(m) { return tr(m.desc, m.desc_en || m.desc); }
 
 // ========== 스테이지 (난이도 조절: 아이템 감소 + 남편 회피) ==========
 const STAGES = [
-    { name: '1단계: 교회 마당', bgColor1: '#87CEEB', bgColor2: '#4A7023', husbandSpeed: 3.2, wifeSpeed: 2.4, itemRate: 0.018, obstacleRate: 0.008, catchDist: 500, maxTier: 1, scrollMult: 1.0, dodgeChance: 0, bgType: 'church', story: '예배가 끝나자마자 남편이 도망친다!' },
-    { name: '2단계: 교회 주차장', bgColor1: '#9BADB7', bgColor2: '#606060', husbandSpeed: 3.5, wifeSpeed: 2.5, itemRate: 0.017, obstacleRate: 0.010, catchDist: 550, maxTier: 1, scrollMult: 1.1, dodgeChance: 0.05, bgType: 'parking', story: '남편이 주차장으로 뛰어간다!' },
-    { name: '3단계: 교회 앞 도로', bgColor1: '#87CEEB', bgColor2: '#505050', husbandSpeed: 3.8, wifeSpeed: 2.6, itemRate: 0.016, obstacleRate: 0.012, catchDist: 600, maxTier: 2, scrollMult: 1.2, dodgeChance: 0.10, bgType: 'road', story: '도로로 나간 남편! 잡아야 해!' },
-    { name: '4단계: 골목길', bgColor1: '#6B7B8D', bgColor2: '#585858', husbandSpeed: 4.1, wifeSpeed: 2.7, itemRate: 0.016, obstacleRate: 0.014, catchDist: 600, maxTier: 2, scrollMult: 1.3, dodgeChance: 0.15, bgType: 'alley', story: '좁은 골목으로 숨는 남편!' },
-    { name: '5단계: 전통시장', bgColor1: '#FFD699', bgColor2: '#8B6914', husbandSpeed: 4.4, wifeSpeed: 2.8, itemRate: 0.015, obstacleRate: 0.016, catchDist: 650, maxTier: 2, scrollMult: 1.4, dodgeChance: 0.20, bgType: 'market', story: '시장 인파 속으로 도망치다!' },
-    { name: '6단계: 공원', bgColor1: '#87CEEB', bgColor2: '#2E8B2E', husbandSpeed: 4.7, wifeSpeed: 2.9, itemRate: 0.014, obstacleRate: 0.014, catchDist: 650, maxTier: 3, scrollMult: 1.5, dodgeChance: 0.25, bgType: 'park', story: '공원에서 전력 질주하는 남편!' },
-    { name: '7단계: 아파트 단지', bgColor1: '#B0C4DE', bgColor2: '#909090', husbandSpeed: 5.0, wifeSpeed: 3.0, itemRate: 0.013, obstacleRate: 0.018, catchDist: 700, maxTier: 3, scrollMult: 1.6, dodgeChance: 0.30, bgType: 'apartment', story: '아파트 단지를 누비는 남편!' },
-    { name: '8단계: 산 길', bgColor1: '#6BAACD', bgColor2: '#3B5323', husbandSpeed: 5.2, wifeSpeed: 3.1, itemRate: 0.013, obstacleRate: 0.016, catchDist: 700, maxTier: 3, scrollMult: 1.7, dodgeChance: 0.35, bgType: 'mountain', story: '산으로 도망가는 남편?!' },
-    { name: '9단계: 고속도로', bgColor1: '#4682B4', bgColor2: '#484848', husbandSpeed: 5.2, wifeSpeed: 3.4, itemRate: 0.015, obstacleRate: 0.020, catchDist: 700, maxTier: 4, scrollMult: 1.8, dodgeChance: 0.30, bgType: 'highway', story: '고속도로까지 온 남편!' },
-    { name: '10단계: 터미널', bgColor1: '#708090', bgColor2: '#787878', husbandSpeed: 5.4, wifeSpeed: 3.4, itemRate: 0.014, obstacleRate: 0.020, catchDist: 700, maxTier: 4, scrollMult: 1.9, dodgeChance: 0.33, bgType: 'terminal', story: '터미널로 도망?! 절대 안돼!' },
-    { name: '11단계: 기차역', bgColor1: '#4169E1', bgColor2: '#555555', husbandSpeed: 5.6, wifeSpeed: 3.4, itemRate: 0.013, obstacleRate: 0.022, catchDist: 720, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.36, bgType: 'train', story: 'KTX를 타려는 남편!' },
-    { name: '12단계: 집 앞', bgColor1: '#FF7043', bgColor2: '#6B4226', husbandSpeed: 5.6, wifeSpeed: 3.6, itemRate: 0.014, obstacleRate: 0.022, catchDist: 700, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.38, bgType: 'home', story: '마지막! 집 앞에서 끝내자!' },
+    { name: '1단계: 교회 마당',     name_en: 'Stage 1: Church Yard',        bgColor1: '#87CEEB', bgColor2: '#4A7023', husbandSpeed: 3.2, wifeSpeed: 2.4, itemRate: 0.018, obstacleRate: 0.008, catchDist: 500, maxTier: 1, scrollMult: 1.0, dodgeChance: 0,    bgType: 'church',    story: '예배가 끝나자마자 남편이 도망친다!', story_en: 'The service ends and your husband bolts!' },
+    { name: '2단계: 교회 주차장',   name_en: 'Stage 2: Church Parking',     bgColor1: '#9BADB7', bgColor2: '#606060', husbandSpeed: 3.5, wifeSpeed: 2.5, itemRate: 0.017, obstacleRate: 0.010, catchDist: 550, maxTier: 1, scrollMult: 1.1, dodgeChance: 0.05, bgType: 'parking',   story: '남편이 주차장으로 뛰어간다!',         story_en: "He's running for the parking lot!" },
+    { name: '3단계: 교회 앞 도로',  name_en: 'Stage 3: Church Road',         bgColor1: '#87CEEB', bgColor2: '#505050', husbandSpeed: 3.8, wifeSpeed: 2.6, itemRate: 0.016, obstacleRate: 0.012, catchDist: 600, maxTier: 2, scrollMult: 1.2, dodgeChance: 0.10, bgType: 'road',      story: '도로로 나간 남편! 잡아야 해!',        story_en: 'Out on the street! Catch him!' },
+    { name: '4단계: 골목길',       name_en: 'Stage 4: Alley',              bgColor1: '#6B7B8D', bgColor2: '#585858', husbandSpeed: 4.1, wifeSpeed: 2.7, itemRate: 0.016, obstacleRate: 0.014, catchDist: 600, maxTier: 2, scrollMult: 1.3, dodgeChance: 0.15, bgType: 'alley',     story: '좁은 골목으로 숨는 남편!',           story_en: 'He hides through narrow alleys!' },
+    { name: '5단계: 전통시장',     name_en: 'Stage 5: Street Market',       bgColor1: '#FFD699', bgColor2: '#8B6914', husbandSpeed: 4.4, wifeSpeed: 2.8, itemRate: 0.015, obstacleRate: 0.016, catchDist: 650, maxTier: 2, scrollMult: 1.4, dodgeChance: 0.20, bgType: 'market',    story: '시장 인파 속으로 도망치다!',         story_en: 'He flees through the bustling market!' },
+    { name: '6단계: 공원',         name_en: 'Stage 6: Park',               bgColor1: '#87CEEB', bgColor2: '#2E8B2E', husbandSpeed: 4.7, wifeSpeed: 2.9, itemRate: 0.014, obstacleRate: 0.014, catchDist: 650, maxTier: 3, scrollMult: 1.5, dodgeChance: 0.25, bgType: 'park',      story: '공원에서 전력 질주하는 남편!',       story_en: 'Sprinting full speed through the park!' },
+    { name: '7단계: 아파트 단지',  name_en: 'Stage 7: Apartments',          bgColor1: '#B0C4DE', bgColor2: '#909090', husbandSpeed: 5.0, wifeSpeed: 3.0, itemRate: 0.013, obstacleRate: 0.018, catchDist: 700, maxTier: 3, scrollMult: 1.6, dodgeChance: 0.30, bgType: 'apartment', story: '아파트 단지를 누비는 남편!',         story_en: 'Weaving through the apartment buildings!' },
+    { name: '8단계: 산 길',        name_en: 'Stage 8: Mountain Trail',     bgColor1: '#6BAACD', bgColor2: '#3B5323', husbandSpeed: 5.2, wifeSpeed: 3.1, itemRate: 0.013, obstacleRate: 0.016, catchDist: 700, maxTier: 3, scrollMult: 1.7, dodgeChance: 0.35, bgType: 'mountain',  story: '산으로 도망가는 남편?!',             story_en: "He's running up the mountain?!" },
+    { name: '9단계: 고속도로',     name_en: 'Stage 9: Highway',            bgColor1: '#4682B4', bgColor2: '#484848', husbandSpeed: 5.2, wifeSpeed: 3.4, itemRate: 0.015, obstacleRate: 0.020, catchDist: 700, maxTier: 4, scrollMult: 1.8, dodgeChance: 0.30, bgType: 'highway',   story: '고속도로까지 온 남편!',               story_en: "He's made it to the highway!" },
+    { name: '10단계: 터미널',      name_en: 'Stage 10: Bus Terminal',      bgColor1: '#708090', bgColor2: '#787878', husbandSpeed: 5.4, wifeSpeed: 3.4, itemRate: 0.014, obstacleRate: 0.020, catchDist: 700, maxTier: 4, scrollMult: 1.9, dodgeChance: 0.33, bgType: 'terminal',  story: '터미널로 도망?! 절대 안돼!',          story_en: "The terminal?! Don't let him board!" },
+    { name: '11단계: 기차역',      name_en: 'Stage 11: Train Station',     bgColor1: '#4169E1', bgColor2: '#555555', husbandSpeed: 5.6, wifeSpeed: 3.4, itemRate: 0.013, obstacleRate: 0.022, catchDist: 720, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.36, bgType: 'train',     story: 'KTX를 타려는 남편!',                  story_en: "He's trying to catch the KTX!" },
+    { name: '12단계: 집 앞',       name_en: 'Stage 12: Home Front',        bgColor1: '#FF7043', bgColor2: '#6B4226', husbandSpeed: 5.6, wifeSpeed: 3.6, itemRate: 0.014, obstacleRate: 0.022, catchDist: 700, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.38, bgType: 'home',      story: '마지막! 집 앞에서 끝내자!',           story_en: 'Final stretch! End it at home!' },
 ];
 
 // CRAZY 전용 추가 스테이지 (기존 11단계 다음, 집 앞 직전에 삽입)
 const CRAZY_EXTRA_STAGES = [
-    { name: '12단계: 옥상 추격전', bgColor1: '#FF6B3D', bgColor2: '#5D3A2E', husbandSpeed: 6.0, wifeSpeed: 3.4, itemRate: 0.012, obstacleRate: 0.024, catchDist: 780, maxTier: 4, scrollMult: 2.2, dodgeChance: 0.50, bgType: 'rooftop', story: '옥상을 뛰어 건너는 남편!! 아래는 절벽이야!' },
-    { name: '13단계: 심야 지하철', bgColor1: '#1a0f2e', bgColor2: '#18141c', husbandSpeed: 6.4, wifeSpeed: 3.3, itemRate: 0.012, obstacleRate: 0.025, catchDist: 820, maxTier: 4, scrollMult: 2.3, dodgeChance: 0.58, bgType: 'subway', story: '막차를 타려는 남편! 터널 속에서 승부!' },
+    { name: '12단계: 옥상 추격전',  name_en: 'Stage 12: Rooftop Chase',     bgColor1: '#FF6B3D', bgColor2: '#5D3A2E', husbandSpeed: 6.0, wifeSpeed: 3.4, itemRate: 0.012, obstacleRate: 0.024, catchDist: 780, maxTier: 4, scrollMult: 2.2, dodgeChance: 0.50, bgType: 'rooftop',   story: '옥상을 뛰어 건너는 남편!! 아래는 절벽이야!', story_en: "He's leaping rooftops! Don't fall below!" },
+    { name: '13단계: 심야 지하철',  name_en: 'Stage 13: Night Subway',       bgColor1: '#1a0f2e', bgColor2: '#18141c', husbandSpeed: 6.4, wifeSpeed: 3.3, itemRate: 0.012, obstacleRate: 0.025, catchDist: 820, maxTier: 4, scrollMult: 2.3, dodgeChance: 0.58, bgType: 'subway',    story: '막차를 타려는 남편! 터널 속에서 승부!',     story_en: "He's after the last train! Showdown in the tunnel!" },
 ];
 // CRAZY 전용 final 스테이지 (밤의 집 앞)
-const CRAZY_HOME_NIGHT = { name: '14단계: 집 앞 (심야)', bgColor1: '#0c1845', bgColor2: '#1a1426', husbandSpeed: 5.6, wifeSpeed: 3.6, itemRate: 0.014, obstacleRate: 0.022, catchDist: 700, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.38, bgType: 'home_night', story: '마지막! 심야의 집 앞에서 끝내자!' };
+const CRAZY_HOME_NIGHT = { name: '14단계: 집 앞 (심야)', name_en: 'Stage 14: Home (Night)', bgColor1: '#0c1845', bgColor2: '#1a1426', husbandSpeed: 5.6, wifeSpeed: 3.6, itemRate: 0.014, obstacleRate: 0.022, catchDist: 700, maxTier: 4, scrollMult: 2.0, dodgeChance: 0.38, bgType: 'home_night', story: '마지막! 심야의 집 앞에서 끝내자!', story_en: 'Final stretch! End it on the dark home street!' };
 
 // 현재 난이도에 맞는 스테이지 배열 반환
 function getActiveStages() {
@@ -300,10 +331,10 @@ function getStageMusic(stageIdx) {
 
 // ========== 난이도 모드 ==========
 const DIFFICULTY = {
-    easy:   { name: 'EASY',   color: '#2ECC71', emoji: '🌱', husbandSpeedMult: 1.00, wifeSpeedMult: 1.00, dodgeChanceMult: 1.00, catchDistMult: 1.00, obstacleRateMult: 1.00, itemRateMult: 1.00, desc: '쉬움 - 가볍게 즐기기' },
-    normal: { name: 'NORMAL', color: '#3498DB', emoji: '⚡', husbandSpeedMult: 1.15, wifeSpeedMult: 0.98, dodgeChanceMult: 1.30, catchDistMult: 1.08, obstacleRateMult: 1.15, itemRateMult: 0.92, desc: '보통 - 적당한 난이도' },
-    hard:   { name: 'HARD',   color: '#F39C12', emoji: '🔥', husbandSpeedMult: 1.30, wifeSpeedMult: 0.95, dodgeChanceMult: 1.60, catchDistMult: 1.15, obstacleRateMult: 1.30, itemRateMult: 0.82, desc: '어려움 - 진지한 도전' },
-    crazy:  { name: 'CRAZY',  color: '#E94560', emoji: '💀', husbandSpeedMult: 1.50, wifeSpeedMult: 0.92, dodgeChanceMult: 2.00, catchDistMult: 1.25, obstacleRateMult: 1.50, itemRateMult: 0.72, desc: '광란 - 극한의 추격전' }
+    easy:   { name: 'EASY',   color: '#2ECC71', emoji: '🌱', husbandSpeedMult: 1.00, wifeSpeedMult: 1.00, dodgeChanceMult: 1.00, catchDistMult: 1.00, obstacleRateMult: 1.00, itemRateMult: 1.00, desc: '쉬움 - 가볍게 즐기기',  desc_en: 'Easy - light and fun' },
+    normal: { name: 'NORMAL', color: '#3498DB', emoji: '⚡', husbandSpeedMult: 1.15, wifeSpeedMult: 0.98, dodgeChanceMult: 1.30, catchDistMult: 1.08, obstacleRateMult: 1.15, itemRateMult: 0.92, desc: '보통 - 적당한 난이도',  desc_en: 'Normal - moderate challenge' },
+    hard:   { name: 'HARD',   color: '#F39C12', emoji: '🔥', husbandSpeedMult: 1.30, wifeSpeedMult: 0.95, dodgeChanceMult: 1.60, catchDistMult: 1.15, obstacleRateMult: 1.30, itemRateMult: 0.82, desc: '어려움 - 진지한 도전',  desc_en: 'Hard - serious challenge' },
+    crazy:  { name: 'CRAZY',  color: '#E94560', emoji: '💀', husbandSpeedMult: 1.50, wifeSpeedMult: 0.92, dodgeChanceMult: 2.00, catchDistMult: 1.25, obstacleRateMult: 1.50, itemRateMult: 0.72, desc: '광란 - 극한의 추격전',  desc_en: 'Crazy - extreme chase' }
 };
 const MODE_LIST = ['easy', 'normal', 'hard', 'crazy'];
 let difficulty = 'easy';
@@ -325,12 +356,12 @@ function getEffectiveStage() {
 }
 
 const OBSTACLE_TYPES = [
-    { name: '목사님', color: '#2C3E50', width: 40, height: 65, collar: true },
-    { name: '장로님', color: '#34495E', width: 38, height: 62, collar: false },
-    { name: '권사님', color: '#8E44AD', width: 36, height: 58, collar: false },
-    { name: '집사님', color: '#2980B9', width: 38, height: 62, collar: false },
-    { name: '성도', color: '#27AE60', width: 36, height: 58, collar: false },
-    { name: '성가대원', color: '#C0392B', width: 38, height: 62, collar: false },
+    { name: '목사님',   name_en: 'Pastor',         color: '#2C3E50', width: 40, height: 65, collar: true },
+    { name: '장로님',   name_en: 'Senior Elder',   color: '#34495E', width: 38, height: 62, collar: false },
+    { name: '권사님',   name_en: 'Elder',          color: '#8E44AD', width: 36, height: 58, collar: false },
+    { name: '집사님',   name_en: 'Deacon',         color: '#2980B9', width: 38, height: 62, collar: false },
+    { name: '성도',     name_en: 'Believer',       color: '#27AE60', width: 36, height: 58, collar: false },
+    { name: '성가대원', name_en: 'Choir Member',   color: '#C0392B', width: 38, height: 62, collar: false },
 ];
 
 // ========== 게임 상태 ==========
@@ -450,7 +481,7 @@ function initStageBg(bgType) {
             for (let i = 0; i < 15; i++) {
                 buildings.push({ x: i * 110 + Math.random() * 20, width: 70 + Math.random() * 30, height: 55 + Math.random() * 25, type: 'stall', awningColor: `hsl(${Math.random() * 360}, 65%, 55%)` });
             }
-            for (let i = 0; i < 8; i++) bgDecor.push({ x: i * 200 + 40, type: 'banner', text: ['떡볶이', '순대', '호떡', '어묵', '붕어빵', '핫도그', '만두', '김밥'][i], color: `hsl(${Math.random()*60}, 80%, 50%)` });
+            for (let i = 0; i < 8; i++) bgDecor.push({ x: i * 200 + 40, type: 'banner', text: ['떡볶이', '순대', '호떡', '어묵', '붕어빵', '핫도그', '만두', '김밥'][i], text_en: ['Tteokbokki', 'Sundae', 'Hotteok', 'Eomuk', 'Bungeoppang', 'Hot Dog', 'Mandu', 'Kimbap'][i], color: `hsl(${Math.random()*60}, 80%, 50%)` });
             break;
         case 'park':
             for (let i = 0; i < 12; i++) {
@@ -526,7 +557,7 @@ function initStageBg(bgType) {
             }
             // 역명 간판: 단 1개만, 아주 넓은 간격으로 드물게 등장 (이전 5개 → 1개)
             // 스크롤 랩어라운드 폭이 canvas.width(1000)+300=1300 이므로 간격 1500으로 해도 1개만 보임
-            buildings.push({ x: 400, width: 200, height: 56, type: 'subway_sign', text: '선릉' });
+            buildings.push({ x: 400, width: 200, height: 56, type: 'subway_sign', text: '선릉', text_en: 'Seolleung' });
             // 지하철 객차 (지면 위 배경)
             for (let i = 0; i < 2; i++) bgDecor.push({ x: i * 700 + 80, type: 'subway_car', color: i === 0 ? '#F39C12' : '#3498DB' });
             // 레일, 바닥 타일
@@ -654,12 +685,23 @@ function getMenuButtonRect(idx) {
 function getBackButtonRect() {
     return { x: 16, y: 16, w: 100, h: 30 };
 }
+// 언어 토글 버튼 (메뉴 화면 우측 상단)
+function getMenuLangButtonRect() {
+    return { x: canvas.width - 124, y: 16, w: 108, h: 38 };
+}
 // 플레이 중 HUD 안에 들어가는 아이콘 버튼들 (플레이 영역을 가리지 않음)
 function getPauseButtonRect() { return { x: canvas.width - 100, y: 15, w: 40, h: 40 }; }
 function getExitButtonRect()  { return { x: canvas.width - 55,  y: 15, w: 40, h: 40 }; }
 
 function handleMenuPointer(cx, cy) {
     ensureMenuMusic();
+    // 언어 토글 우선 처리 (모드 버튼보다 위)
+    let rL = getMenuLangButtonRect();
+    if (cx >= rL.x && cx <= rL.x + rL.w && cy >= rL.y && cy <= rL.y + rL.h) {
+        if (cx < rL.x + rL.w / 2) setLang('en');
+        else setLang('ko');
+        return true;
+    }
     for (let i = 0; i < MODE_LIST.length; i++) {
         let r = getMenuButtonRect(i);
         if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
@@ -784,30 +826,30 @@ function triggerItemEffect(item) {
             activeEffects.push({ type: 'slap', x: hx, y: hy, timer: 60, maxTimer: 60 });
             shakeTimer = 20; shakeIntensity = 12;
             husband.hitTimer = 40;
-            addTextParticle(hx, hy - 80, '퍽!!!', '#FF0000', 36);
+            addTextParticle(hx, hy - 80, tr('퍽!!!', 'POW!!!'), '#FF0000', 36);
             for (let i = 0; i < 30; i++) addParticle(hx, hy - 40, '#FF4444', 1, 10);
             break;
         case 'shout':
             activeEffects.push({ type: 'shout', x: wx, y: wy - 40, timer: 50, maxTimer: 50 });
             shakeTimer = 12; shakeIntensity = 8;
             husband.hitTimer = 35;
-            addTextParticle(wx + 50, wy - 70, '여보!!!', '#FF4081', 30);
-            addTextParticle(wx + 80, wy - 50, '거기 서!!!', '#FF4081', 24);
+            addTextParticle(wx + 50, wy - 70, tr('여보!!!', 'Honey!!!'), '#FF4081', 30);
+            addTextParticle(wx + 80, wy - 50, tr('거기 서!!!', 'Stop right there!!!'), '#FF4081', 24);
             break;
         case 'npc_block':
             npcBlockers.push({
-                name: item.npcName, color: item.npcColor, emoji: item.npcEmoji,
+                name: item.npcName, name_en: item.npcName_en, color: item.npcColor, emoji: item.npcEmoji,
                 x: wx + 30, y: GROUND_Y, targetX: hx - 30,
                 speed: 8, timer: item.duration, arrived: false,
                 frame: 0, frameTimer: 0
             });
             husband.hitTimer = 25;
-            addTextParticle(wx, wy - 80, `${item.npcName} 출동!`, item.color, 22);
+            addTextParticle(wx, wy - 80, tr(`${item.npcName} 출동!`, `${item.npcName_en} on the way!`), item.color, 22);
             break;
         case 'holy':
             activeEffects.push({ type: 'holy', x: hx, y: 0, timer: 70, maxTimer: 70 });
             husband.hitTimer = 35;
-            addTextParticle(hx, hy - 90, '빛의 심판!', '#FFD700', 26);
+            addTextParticle(hx, hy - 90, tr('빛의 심판!', 'Holy Judgment!'), '#FFD700', 26);
             break;
         case 'notes':
             for (let i = 0; i < 12; i++) {
@@ -818,30 +860,30 @@ function triggerItemEffect(item) {
         case 'book':
             activeEffects.push({ type: 'book', x: hx, y: hy - 60, timer: 60, maxTimer: 60 });
             husband.hitTimer = 25;
-            addTextParticle(hx, hy - 100, '말씀의 힘!', '#8B6914', 22);
+            addTextParticle(hx, hy - 100, tr('말씀의 힘!', 'Power of the Word!'), '#8B6914', 22);
             break;
         case 'money':
             for (let i = 0; i < 8; i++) {
                 activeEffects.push({ type: 'money', x: hx + (Math.random() - 0.5) * 80, y: hy - 40 - Math.random() * 60, timer: 70 + Math.random() * 30, maxTimer: 100, vy: -2 - Math.random() * 3, vx: (Math.random() - 0.5) * 3, rot: Math.random() * 6 });
             }
             husband.hitTimer = 20;
-            addTextParticle(hx, hy - 100, '헌금 안 냈다!', '#43A047', 20);
+            addTextParticle(hx, hy - 100, tr('헌금 안 냈다!', 'Skipped offering!'), '#43A047', 20);
             break;
         case 'food':
             activeEffects.push({ type: 'food', x: hx, y: hy - 30, timer: 80, maxTimer: 80 });
             husband.hitTimer = 20;
-            addTextParticle(hx, hy - 90, '맛있는 냄새~', '#E53935', 20);
+            addTextParticle(hx, hy - 90, tr('맛있는 냄새~', 'What a smell~'), '#E53935', 20);
             break;
         case 'key':
             activeEffects.push({ type: 'key', x: hx, y: hy - 50, timer: 60, maxTimer: 60 });
-            addTextParticle(hx, hy - 90, '차 열쇠 압수!', '#00ACC1', 22);
+            addTextParticle(hx, hy - 90, tr('차 열쇠 압수!', 'Keys confiscated!'), '#00ACC1', 22);
             husband.hitTimer = 30;
             break;
         case 'pray':
             activeEffects.push({ type: 'pray', x: hx, y: 0, timer: 80, maxTimer: 80 });
             shakeTimer = 15; shakeIntensity = 10;
             husband.hitTimer = 45;
-            addTextParticle(hx - 40, hy - 100, '전교인 기도!', '#E91E63', 28);
+            addTextParticle(hx - 40, hy - 100, tr('전교인 기도!', 'All-church prayer!'), '#E91E63', 28);
             for (let i = 0; i < 6; i++) {
                 activeEffects.push({ type: 'pray_hand', x: hx + (i - 3) * 40, y: -20, targetY: hy - 60, timer: 60, maxTimer: 60, delay: i * 5 });
             }
@@ -972,7 +1014,7 @@ function update() {
             comboCount++; comboTimer = 180;
             let mult = Math.min(comboCount, 5);
             let eff = item.slowAmount * (1 + mult * 0.2);
-            husband.slowEffects.push({ name: item.name, amount: eff, remaining: item.duration });
+            husband.slowEffects.push({ name: item.name, name_en: item.name_en, amount: eff, remaining: item.duration });
             let pts = Math.floor(item.slowAmount * 100 * mult);
             score += pts;
 
@@ -980,7 +1022,7 @@ function update() {
             let ct = comboCount > 1 ? ` x${comboCount}` : '';
             addTextParticle(item.x, item.y - item.size - 20, `+${pts}${ct}`, item.color, 22);
 
-            messageText = item.desc; messageTimer = 100; messageColor = item.color;
+            messageText = getItemDesc(item); messageTimer = 100; messageColor = item.color;
             triggerItemEffect(item);
             return false;
         }
@@ -997,18 +1039,18 @@ function update() {
                 husband.isJumping = true;
                 husband.jumpVy = -12;
                 husband.jumpY = 0;
-                addTextParticle(husband.x, husband.y - 80, '휙!', '#FF6B6B', 20);
+                addTextParticle(husband.x, husband.y - 80, tr('휙!', 'Whoosh!'), '#FF6B6B', 20);
                 addParticle(husband.x, husband.y - 10, '#FFD700', 5, 6);
             } else {
                 obs.blockedHusband = true;
-                husband.slowEffects.push({ name: obs.name, amount: 0.8, remaining: 40 });
-                addTextParticle(obs.x, obs.y - 85, `${obs.name}: 어딜!`, '#FFD700', 14);
+                husband.slowEffects.push({ name: obs.name, name_en: obs.name_en, amount: 0.8, remaining: 40 });
+                addTextParticle(obs.x, obs.y - 85, `${getObsName(obs)}: ${tr('어딜!', 'Stop!')}`, '#FFD700', 14);
                 addParticle(obs.x, obs.y - 30, '#FFD700', 6, 4);
             }
         }
         if (!obs.passed && !obs.dodged && Math.abs(obs.x - wife.x) < 35) {
             obs.passed = true; obs.alpha = 0.15;
-            addTextParticle(obs.x, obs.y - 80, '쓩~', '#00FF88', 16);
+            addTextParticle(obs.x, obs.y - 80, tr('쓩~', 'Whoosh~'), '#00FF88', 16);
         }
         return obs.x > -100;
     });
@@ -1107,7 +1149,7 @@ function drawItem(item) {
 
     let ab = Math.sin(t * 6) * 4;
     if (item.needDoubleJump) {
-        ctx.fillStyle = `rgba(255,100,255,${0.7 + Math.sin(t * 6) * 0.3})`; ctx.font = 'bold 12px Malgun Gothic'; ctx.textBaseline = 'bottom'; ctx.fillText('2단 JUMP!', cx, cy - r - 8 + ab); ctx.fillText('\u25BC\u25BC', cx, cy - r + 1 + ab);
+        ctx.fillStyle = `rgba(255,100,255,${0.7 + Math.sin(t * 6) * 0.3})`; ctx.font = 'bold 12px Malgun Gothic'; ctx.textBaseline = 'bottom'; ctx.fillText(tr('2단 JUMP!', 'DOUBLE JUMP!'), cx, cy - r - 8 + ab); ctx.fillText('\u25BC\u25BC', cx, cy - r + 1 + ab);
     } else if (item.baseY < GROUND_Y - 20) {
         ctx.fillStyle = `rgba(255,255,0,${0.7 + Math.sin(t * 6) * 0.3})`; ctx.font = 'bold 12px Malgun Gothic'; ctx.textBaseline = 'bottom'; ctx.fillText('JUMP!', cx, cy - r - 8 + ab); ctx.fillText('\u25BC', cx, cy - r + 1 + ab);
     } else {
@@ -1115,10 +1157,11 @@ function drawItem(item) {
     }
 
     ctx.font = 'bold 9px Malgun Gothic'; ctx.textBaseline = 'top';
-    let nw = ctx.measureText(item.name).width;
+    let _itemNameStr = getItemName(item);
+    let nw = ctx.measureText(_itemNameStr).width;
     ctx.fillStyle = 'rgba(0,80,0,0.8)'; roundRect(ctx, cx - nw / 2 - 4, cy + r + 4, nw + 8, 14, 3); ctx.fill();
     ctx.strokeStyle = 'rgba(0,255,100,0.5)'; ctx.lineWidth = 1; roundRect(ctx, cx - nw / 2 - 4, cy + r + 4, nw + 8, 14, 3); ctx.stroke();
-    ctx.fillStyle = '#88FF88'; ctx.textAlign = 'center'; ctx.fillText(item.name, cx, cy + r + 6);
+    ctx.fillStyle = '#88FF88'; ctx.textAlign = 'center'; ctx.fillText(_itemNameStr, cx, cy + r + 6);
 
     ctx.restore();
 }
@@ -1161,7 +1204,7 @@ function drawActiveEffects() {
                     ctx.fillStyle = '#FF4081';
                     ctx.font = `bold ${Math.floor(ts)}px Malgun Gothic`;
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('여보!!!', e.x + (1 - p) * 150, e.y);
+                    ctx.fillText(tr('여보!!!', 'Honey!!!'), e.x + (1 - p) * 150, e.y);
                 }
                 break;
             }
@@ -1195,10 +1238,11 @@ function drawActiveEffects() {
                 ctx.font = `${Math.floor(s)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText('📖', e.x, e.y);
                 ctx.font = '12px serif'; ctx.fillStyle = '#8B6914';
+                const _bookWords = currentLang === 'ko' ? ['말씀', '은혜', '아멘'] : ['Word', 'Grace', 'Amen'];
                 for (let i = 0; i < 3; i++) {
                     let tx = e.x + Math.sin(Date.now() * 0.005 + i * 2) * 40;
                     let ty = e.y - 20 + Math.cos(Date.now() * 0.004 + i) * 15;
-                    ctx.fillText(['말씀', '은혜', '아멘'][i], tx, ty);
+                    ctx.fillText(_bookWords[i], tx, ty);
                 }
                 break;
             }
@@ -1292,10 +1336,11 @@ function drawNpcBlocker(npc) {
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         roundRect(ctx, -25, -78, 50, 22, 6); ctx.fill();
         ctx.fillStyle = '#000'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(npc.name === '아이들' ? '안가!' : '멈춰!', 0, -67);
+        let _shout = (npc.name === '아이들') ? tr('안가!', "Won't go!") : tr('멈춰!', 'Stop!');
+        ctx.fillText(_shout, 0, -67);
         // 타이틀: 말풍선 위
         ctx.fillStyle = npc.color; ctx.font = 'bold 10px Malgun Gothic'; ctx.textBaseline = 'bottom';
-        ctx.fillText(npc.name, 0, -80);
+        ctx.fillText(tr(npc.name, npc.name_en || npc.name), 0, -80);
         // 타이머 바: 타이틀 위
         let pct = npc.timer / 200;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-15, -94, 30, 4);
@@ -1306,7 +1351,7 @@ function drawNpcBlocker(npc) {
         ctx.save(); ctx.translate(-12, -30); ctx.rotate(-la * Math.PI / 180 * 0.5); ctx.fillRect(-16, -3, 16, 6); ctx.restore();
         // 타이틀: 머리 위
         ctx.fillStyle = npc.color; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-        ctx.fillText(npc.name, 0, -62);
+        ctx.fillText(tr(npc.name, npc.name_en || npc.name), 0, -62);
         // 타이머 바
         let pct = npc.timer / 200;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-15, -60, 30, 4);
@@ -1399,7 +1444,7 @@ function drawHusband(x, y, frame, scared, groundY) {
     if (husband.isJumping) {
         ctx.globalAlpha = 0.6;
         ctx.fillStyle = '#FFD700'; ctx.font = 'bold 14px Malgun Gothic'; ctx.textAlign = 'center';
-        ctx.fillText('회피!', 0, -72);
+        ctx.fillText(tr('회피!', 'Dodge!'), 0, -72);
     }
     ctx.restore();
 }
@@ -1428,11 +1473,11 @@ function drawObstacle(obs) {
         ctx.globalAlpha = 0.9;
         ctx.fillStyle = 'rgba(255,255,255,0.9)'; roundRect(ctx, -22, -obs.height - 38, 44, 18, 5); ctx.fill();
         ctx.fillStyle = '#C00'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('어딜!', 0, -obs.height - 29);
+        ctx.fillText(tr('어딜!', 'Stop!'), 0, -obs.height - 29);
         // 타이틀: 말풍선 위
         ctx.globalAlpha = 1;
         ctx.fillStyle = obs.color; ctx.font = 'bold 10px Malgun Gothic'; ctx.textBaseline = 'bottom';
-        ctx.fillText(obs.name, 0, -obs.height - 40);
+        ctx.fillText(getObsName(obs), 0, -obs.height - 40);
     } else if (obs.dodged) {
         // 말풍선
         ctx.globalAlpha = 0.8;
@@ -1442,13 +1487,13 @@ function drawObstacle(obs) {
         // 타이틀: 말풍선 위
         ctx.globalAlpha = 0.6;
         ctx.fillStyle = obs.color; ctx.font = 'bold 10px Malgun Gothic'; ctx.textBaseline = 'bottom';
-        ctx.fillText(obs.name, 0, -obs.height - 40);
+        ctx.fillText(getObsName(obs), 0, -obs.height - 40);
     } else {
         // 말풍선 없을 때: 타이틀만 머리 위에
         ctx.globalAlpha = baseAlpha;
         ctx.fillStyle = '#999'; ctx.font = 'bold 9px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-        ctx.fillText(obs.name, 0, -obs.height - 22);
-        if (!obs.passed) { ctx.globalAlpha = 0.3; ctx.fillStyle = '#888'; ctx.font = '8px Malgun Gothic'; ctx.fillText('- 자동통과 -', 0, -obs.height - 12); }
+        ctx.fillText(getObsName(obs), 0, -obs.height - 22);
+        if (!obs.passed) { ctx.globalAlpha = 0.3; ctx.fillStyle = '#888'; ctx.font = '8px Malgun Gothic'; ctx.fillText(tr('- 자동통과 -', '- auto pass -'), 0, -obs.height - 12); }
     }
     ctx.restore();
 }
@@ -1719,7 +1764,7 @@ function drawStageBgObjects(bgType, scrollX) {
                 // 간판
                 ctx.fillStyle = '#1565C0'; ctx.fillRect(bx + b.width * 0.3, GROUND_Y - b.height - 25, b.width * 0.4, 15);
                 ctx.fillStyle = '#FFF'; ctx.font = 'bold 9px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('터미널', bx + b.width * 0.5, GROUND_Y - b.height - 18);
+                ctx.fillText(tr('터미널', 'TERMINAL'), bx + b.width * 0.5, GROUND_Y - b.height - 18);
                 break;
             }
             case 'bus': {
@@ -1856,7 +1901,7 @@ function drawStageBgObjects(bgType, scrollX) {
                 roundRect(ctx, bx, GROUND_Y - 170, b.width, b.height, 4); ctx.stroke();
                 ctx.fillStyle = '#FFF'; ctx.font = 'bold 22px Malgun Gothic';
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(b.text, bx + b.width / 2, GROUND_Y - 170 + b.height / 2);
+                ctx.fillText(tr(b.text, b.text_en || b.text), bx + b.width / 2, GROUND_Y - 170 + b.height / 2);
                 // 걸이
                 ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
                 ctx.beginPath();
@@ -1925,7 +1970,7 @@ function drawStageGroundDecor(bgType, scrollX) {
                 ctx.fillStyle = d.color;
                 roundRect(ctx, dx - 15, GROUND_Y - 60, 30, 18, 3); ctx.fill();
                 ctx.fillStyle = '#FFF'; ctx.font = 'bold 8px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(d.text, dx, GROUND_Y - 51);
+                ctx.fillText(tr(d.text, d.text_en || d.text), dx, GROUND_Y - 51);
                 ctx.fillStyle = '#555'; ctx.fillRect(dx - 1, GROUND_Y - 42, 2, 42);
                 break;
             }
@@ -2132,11 +2177,20 @@ function drawUI() {
     // 모드 배지
     ctx.fillStyle = dmode.color; ctx.font = 'bold 11px Malgun Gothic'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(`[${dmode.emoji}${dmode.name}]`, 20, 18);
-    ctx.fillStyle = '#FFD700'; ctx.font = 'bold 15px Malgun Gothic'; ctx.fillText(s.name, 20, 40);
+    // 스테이지명: 진행 바(x=200)와 겹치지 않게 자동 축소
+    let _stageNameStr = getStageName(s);
+    let _maxNameW = 175;
+    let _stageNameFont = 15;
+    ctx.font = `bold ${_stageNameFont}px Malgun Gothic`;
+    while (_stageNameFont > 10 && ctx.measureText(_stageNameStr).width > _maxNameW) {
+        _stageNameFont -= 1;
+        ctx.font = `bold ${_stageNameFont}px Malgun Gothic`;
+    }
+    ctx.fillStyle = '#FFD700'; ctx.fillText(_stageNameStr, 20, 40);
     // 점수는 일시정지/나가기 버튼과 겹치지 않게 왼쪽으로 이동 (버튼은 x>=canvas.width-100)
     let scoreRight = canvas.width - 115;
-    ctx.fillStyle = '#FFF'; ctx.font = 'bold 14px Malgun Gothic'; ctx.textAlign = 'right'; ctx.fillText(`점수: ${score}`, scoreRight, 24);
-    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText(`총점: ${totalScore + score}`, scoreRight, 44);
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 14px Malgun Gothic'; ctx.textAlign = 'right'; ctx.fillText(tr(`점수: ${score}`, `Score: ${score}`), scoreRight, 24);
+    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText(tr(`총점: ${totalScore + score}`, `Total: ${totalScore + score}`), scoreRight, 44);
 
     let barX = 200, barW = 500, barY = 40, barH = 14;
     let ratio = 1 - Math.min(distance / (s.catchDist + 200), 1);
@@ -2148,24 +2202,24 @@ function drawUI() {
     ctx.fillText('\uD83C\uDFC3', barX + barW, barY - 8);
     ctx.fillStyle = '#FFF'; ctx.font = 'bold 10px Malgun Gothic'; ctx.fillText(`${Math.max(0, Math.floor(distance))}m`, barX + barW / 2, barY + 7);
 
-    if (comboCount > 1) { ctx.fillStyle = `rgba(255,215,0,${0.7 + Math.sin(Date.now() * 0.01) * 0.3})`; ctx.font = `bold ${16 + comboCount * 2}px Malgun Gothic`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(`${comboCount}x 콤보!`, canvas.width / 2, 68); }
+    if (comboCount > 1) { ctx.fillStyle = `rgba(255,215,0,${0.7 + Math.sin(Date.now() * 0.01) * 0.3})`; ctx.font = `bold ${16 + comboCount * 2}px Malgun Gothic`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(tr(`${comboCount}x 콤보!`, `${comboCount}x Combo!`), canvas.width / 2, 68); }
 
     if (husband.slowEffects.length > 0) {
         let ph = 18 + husband.slowEffects.length * 16;
         ctx.fillStyle = 'rgba(0,0,0,0.65)'; roundRect(ctx, 10, 70, 220, ph, 6); ctx.fill();
-        ctx.fillStyle = '#FF6B6B'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('남편 감속:', 16, 74);
-        husband.slowEffects.forEach((e, i) => { ctx.fillStyle = '#FFF'; ctx.font = '10px Malgun Gothic'; ctx.fillText(`${e.name} (${(e.remaining / 60).toFixed(1)}s)`, 22, 90 + i * 16); });
+        ctx.fillStyle = '#FF6B6B'; ctx.font = 'bold 10px Malgun Gothic'; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(tr('남편 감속:', 'Husband slowed:'), 16, 74);
+        husband.slowEffects.forEach((e, i) => { ctx.fillStyle = '#FFF'; ctx.font = '10px Malgun Gothic'; let _en = tr(e.name, e.name_en || e.name); ctx.fillText(`${_en} (${(e.remaining / 60).toFixed(1)}s)`, 22, 90 + i * 16); });
     }
 
     let lx = canvas.width - 185, ly = canvas.height - 65;
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; roundRect(ctx, lx, ly, 175, 55, 6); ctx.fill();
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#00FF66'; ctx.font = 'bold 12px Malgun Gothic'; ctx.fillText('\u25CF', lx + 10, ly + 16);
-    ctx.fillStyle = '#88FF88'; ctx.font = '11px Malgun Gothic'; ctx.fillText('빛나는 것 = 먹기!', lx + 25, ly + 16);
+    ctx.fillStyle = '#88FF88'; ctx.font = '11px Malgun Gothic'; ctx.fillText(tr('빛나는 것 = 먹기!', 'Shiny = Grab!'), lx + 25, ly + 16);
     ctx.fillStyle = '#888'; ctx.font = 'bold 12px Malgun Gothic'; ctx.fillText('\u25CB', lx + 10, ly + 38);
-    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText('흐린 사람 = 자동 통과', lx + 25, ly + 38);
+    ctx.fillStyle = '#AAA'; ctx.font = '11px Malgun Gothic'; ctx.fillText(tr('흐린 사람 = 자동 통과', 'Faded = auto-pass'), lx + 25, ly + 38);
     ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '11px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText('\u2191/Space: 점프(2단!) | \u2192: 가속', canvas.width / 2, canvas.height - 8);
+    ctx.fillText(tr('\u2191/Space: 점프(2단!) | \u2192: 가속', '\u2191/Space: Jump (2x!) | \u2192: Boost'), canvas.width / 2, canvas.height - 8);
 }
 
 function drawTutorial() {
@@ -2176,11 +2230,11 @@ function drawTutorial() {
     ctx.fillStyle = 'rgba(0,0,0,0.85)'; roundRect(ctx, px, py, pw, ph, 12); ctx.fill();
     ctx.strokeStyle = 'rgba(0,255,100,0.5)'; ctx.lineWidth = 2; roundRect(ctx, px, py, pw, ph, 12); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Malgun Gothic'; ctx.fillText('아이템을 먹어서 남편을 느리게 만드세요!', canvas.width / 2, py + 25);
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 16px Malgun Gothic'; ctx.fillText(tr('아이템을 먹어서 남편을 느리게 만드세요!', 'Grab items to slow your husband down!'), canvas.width / 2, py + 25);
     ctx.fillStyle = '#00FF66'; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('\u25CF', canvas.width / 2 - 160, py + 58);
-    ctx.fillStyle = '#88FF88'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('초록빛 = 아이템 (먹으세요!)', canvas.width / 2 - 30, py + 58);
+    ctx.fillStyle = '#88FF88'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText(tr('초록빛 = 아이템 (먹으세요!)', 'Green glow = Item (Grab it!)'), canvas.width / 2 - 30, py + 58);
     ctx.fillStyle = '#777'; ctx.font = 'bold 20px Malgun Gothic'; ctx.fillText('\u25CB', canvas.width / 2 - 160, py + 90);
-    ctx.fillStyle = '#AAA'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText('흐린 사람 = 신경 쓸 필요 없음', canvas.width / 2 - 20, py + 90);
+    ctx.fillStyle = '#AAA'; ctx.font = 'bold 14px Malgun Gothic'; ctx.fillText(tr('흐린 사람 = 신경 쓸 필요 없음', 'Faded person = Ignore'), canvas.width / 2 - 20, py + 90);
     ctx.restore();
 }
 
@@ -2223,12 +2277,12 @@ function drawMenu() {
     let titlePulse = Math.sin(Date.now() * 0.004) * 0.3 + 0.7;
     ctx.shadowColor = '#E94560'; ctx.shadowBlur = 25 * titlePulse;
     ctx.fillStyle = '#E94560'; ctx.font = 'bold 60px Malgun Gothic';
-    ctx.fillText('심방런', canvas.width / 2, titleY);
+    ctx.fillText(tr('심방런', 'SimbangRun'), canvas.width / 2, titleY);
     ctx.shadowBlur = 0;
 
     ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 10;
     ctx.fillStyle = '#FFD700'; ctx.font = 'bold 17px Malgun Gothic';
-    ctx.fillText('★ 도망가는 남편을 잡아라! ★', canvas.width / 2, titleY + 48);
+    ctx.fillText(tr('★ 도망가는 남편을 잡아라! ★', '★ Catch the Runaway Husband! ★'), canvas.width / 2, titleY + 48);
     ctx.shadowBlur = 0;
 
     // 모드 버튼 4개 (2x2 그리드, 자동 중앙정렬)
@@ -2262,7 +2316,7 @@ function drawMenu() {
         // 설명
         ctx.fillStyle = isSelected ? '#FFF' : '#AAA';
         ctx.font = '11px Malgun Gothic';
-        ctx.fillText(d.desc, r.x + 70, r.y + 55);
+        ctx.fillText(getModeDesc(d), r.x + 70, r.y + 55);
 
         // 스테이지 수 표시 (CRAZY는 14, 나머지는 12)
         ctx.fillStyle = isSelected ? d.color : '#888';
@@ -2291,7 +2345,39 @@ function drawMenu() {
     // 하단 안내 (조작키만 간결하게)
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#888'; ctx.font = '11px Malgun Gothic';
-    ctx.fillText('방향키/마우스로 선택 · Space/Enter/클릭으로 시작', canvas.width / 2, canvas.height - 30);
+    ctx.fillText(tr('방향키/마우스로 선택 · Space/Enter/클릭으로 시작', 'Arrows / Mouse to select · Space / Enter / Click to start'), canvas.width / 2, canvas.height - 30);
+
+    // 언어 토글 (우측 상단)
+    drawMenuLangButton();
+}
+
+function drawMenuLangButton() {
+    let r = getMenuLangButtonRect();
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    roundRect(ctx, r.x, r.y, r.w, r.h, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.32)'; ctx.lineWidth = 1.5;
+    roundRect(ctx, r.x, r.y, r.w, r.h, 8); ctx.stroke();
+    let mid = r.x + r.w / 2;
+    let activeFill = 'rgba(233,69,96,0.45)';
+    if (currentLang === 'en') {
+        ctx.fillStyle = activeFill;
+        roundRect(ctx, r.x + 2, r.y + 2, r.w / 2 - 2, r.h - 4, 6); ctx.fill();
+    } else {
+        ctx.fillStyle = activeFill;
+        roundRect(ctx, mid, r.y + 2, r.w / 2 - 2, r.h - 4, 6); ctx.fill();
+    }
+    ctx.font = 'bold 12px Malgun Gothic'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = currentLang === 'en' ? '#FFF' : 'rgba(255,255,255,0.55)';
+    ctx.fillText('EN', r.x + r.w / 4, r.y + r.h / 2 + 1);
+    ctx.fillStyle = currentLang === 'ko' ? '#FFF' : 'rgba(255,255,255,0.55)';
+    ctx.fillText('KO', r.x + r.w * 3 / 4, r.y + r.h / 2 + 1);
+    // 작은 라벨 (위)
+    ctx.font = 'bold 8px Malgun Gothic';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(tr('언어', 'Language'), r.x + r.w / 2, r.y - 2);
+    ctx.restore();
 }
 
 // 메뉴로 돌아가기 버튼 그리기 (비-플레이 화면에서 좌측 상단)
@@ -2304,7 +2390,7 @@ function drawBackButton() {
     roundRect(ctx, r.x, r.y, r.w, r.h, 6); ctx.stroke();
     ctx.fillStyle = '#FFF'; ctx.font = 'bold 12px Malgun Gothic';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('← 메뉴', r.x + r.w / 2, r.y + r.h / 2);
+    ctx.fillText(tr('← 메뉴', '← Menu'), r.x + r.w / 2, r.y + r.h / 2);
     ctx.restore();
 }
 
@@ -2327,9 +2413,9 @@ function drawHudIconButton(rect, icon, tooltip, hotColor) {
 }
 function drawPlayingHudButtons() {
     let pauseIcon = gameState === 'paused' ? '▶' : '⏸';
-    let pauseTip = gameState === 'paused' ? '재개' : '정지';
+    let pauseTip = gameState === 'paused' ? tr('재개', 'Resume') : tr('정지', 'Pause');
     drawHudIconButton(getPauseButtonRect(), pauseIcon, pauseTip, 'rgba(255,215,0,0.5)');
-    drawHudIconButton(getExitButtonRect(),  '🏠', '나가기', 'rgba(255,107,107,0.5)');
+    drawHudIconButton(getExitButtonRect(),  '🏠', tr('나가기', 'Exit'), 'rgba(255,107,107,0.5)');
 }
 
 // 일시정지 오버레이 + 액션 버튼
@@ -2342,24 +2428,24 @@ function drawPauseOverlay() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#FFD700'; ctx.font = 'bold 56px Malgun Gothic';
     ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 20;
-    ctx.fillText('일시정지', canvas.width/2, canvas.height/2 - 60);
+    ctx.fillText(tr('일시정지', 'Paused'), canvas.width/2, canvas.height/2 - 60);
     ctx.shadowBlur = 0;
 
     ctx.fillStyle = '#FFF'; ctx.font = '14px Malgun Gothic';
-    ctx.fillText('⏸ / ESC 로 재개 · 🏠 로 메뉴 복귀', canvas.width/2, canvas.height/2 - 15);
+    ctx.fillText(tr('⏸ / ESC 로 재개 · 🏠 로 메뉴 복귀', '⏸ / ESC to resume · 🏠 back to menu'), canvas.width/2, canvas.height/2 - 15);
 
     // 버튼 2개
     let rR = getResumeButtonRect();
     ctx.fillStyle = 'rgba(46,204,113,0.2)'; roundRect(ctx, rR.x, rR.y, rR.w, rR.h, 10); ctx.fill();
     ctx.strokeStyle = '#2ECC71'; ctx.lineWidth = 2; roundRect(ctx, rR.x, rR.y, rR.w, rR.h, 10); ctx.stroke();
     ctx.fillStyle = '#2ECC71'; ctx.font = 'bold 16px Malgun Gothic';
-    ctx.fillText('▶ 계속하기', rR.x + rR.w/2, rR.y + rR.h/2);
+    ctx.fillText(tr('▶ 계속하기', '▶ Resume'), rR.x + rR.w/2, rR.y + rR.h/2);
 
     let rX = getPauseExitButtonRect();
     ctx.fillStyle = 'rgba(231,76,60,0.2)'; roundRect(ctx, rX.x, rX.y, rX.w, rX.h, 10); ctx.fill();
     ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 2; roundRect(ctx, rX.x, rX.y, rX.w, rX.h, 10); ctx.stroke();
     ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 16px Malgun Gothic';
-    ctx.fillText('🏠 메뉴로', rX.x + rX.w/2, rX.y + rX.h/2);
+    ctx.fillText(tr('🏠 메뉴로', '🏠 To Menu'), rX.x + rX.w/2, rX.y + rX.h/2);
 
     ctx.restore();
 }
@@ -2442,7 +2528,7 @@ function drawStoryIntro() {
 
     // 스테이지 이름
     ctx.fillStyle = '#E94560'; ctx.font = 'bold 38px Malgun Gothic';
-    ctx.fillText(s.name, cx, cy - 145);
+    ctx.fillText(getStageName(s), cx, cy - 145);
 
     // 구분선
     ctx.strokeStyle = 'rgba(233,69,96,0.3)'; ctx.lineWidth = 1;
@@ -2450,24 +2536,24 @@ function drawStoryIntro() {
 
     // 스토리
     ctx.fillStyle = '#FFD700'; ctx.font = '20px Malgun Gothic';
-    ctx.fillText(s.story, cx, cy - 85);
+    ctx.fillText(getStageStory(s), cx, cy - 85);
 
     // 정보
     ctx.fillStyle = '#FF6B6B'; ctx.font = '15px Malgun Gothic';
-    ctx.fillText(`남편 속도: ${'\uD83C\uDFC3'.repeat(Math.min(Math.ceil(s.husbandSpeed / 1.5), 5))}`, cx, cy - 45);
+    ctx.fillText(tr('남편 속도', 'Husband speed') + `: ${'\uD83C\uDFC3'.repeat(Math.min(Math.ceil(s.husbandSpeed / 1.5), 5))}`, cx, cy - 45);
 
     ctx.fillStyle = '#AAA'; ctx.font = '15px Malgun Gothic';
-    ctx.fillText(`출발 거리: ${s.catchDist}m`, cx, cy - 20);
+    ctx.fillText(tr('출발 거리', 'Start distance') + `: ${s.catchDist}m`, cx, cy - 20);
 
     // 회피율 표시 (있는 경우)
     if (s.dodgeChance > 0) {
         ctx.fillStyle = '#FF8888'; ctx.font = '14px Malgun Gothic';
-        ctx.fillText(`남편 회피율: ${Math.floor(s.dodgeChance * 100)}%`, cx, cy + 8);
+        ctx.fillText(tr('남편 회피율', 'Husband dodge') + `: ${Math.floor(s.dodgeChance * 100)}%`, cx, cy + 8);
     }
 
     // 범례
     ctx.fillStyle = '#00FF66'; ctx.font = 'bold 13px Malgun Gothic';
-    ctx.fillText('\u25CF 초록빛 = 먹기!       \u25CB 흐린 사람 = 무시', cx, cy + 45);
+    ctx.fillText(tr('\u25CF 초록빛 = 먹기!       \u25CB 흐린 사람 = 무시', '\u25CF Green = Grab!       \u25CB Faded = Ignore'), cx, cy + 45);
 
     // 캐릭터
     drawWife(cx - 60, cy + 120, Math.floor(Date.now() / 150) % 4);
@@ -2476,7 +2562,7 @@ function drawStoryIntro() {
     // 시작 안내
     let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 20px Malgun Gothic';
-    ctx.fillText('클릭 / 터치하여 출발!', cx, panelY + panelH + 35);
+    ctx.fillText(tr('클릭 / 터치하여 출발!', 'Click / Tap to start!'), cx, panelY + panelH + 35);
 }
 
 function drawStageClear() {
@@ -2502,19 +2588,21 @@ function drawStageClear() {
     let dmodeC = DIFFICULTY[difficulty];
     ctx.fillStyle = dmodeC.color; ctx.font = 'bold 13px Malgun Gothic';
     ctx.fillText(`[ ${dmodeC.emoji} ${dmodeC.name} MODE ]`, cx, cy - 175);
-    ctx.fillStyle = '#2ECC71'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText('잡았다!!!', cx, cy - 140);
-    ctx.fillStyle = '#FFD700'; ctx.font = '24px Malgun Gothic'; ctx.fillText(getActiveStages()[currentStage].name + ' 클리어!', cx, cy - 85);
+    ctx.fillStyle = '#2ECC71'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText(tr('잡았다!!!', 'Caught You!!!'), cx, cy - 140);
+    ctx.fillStyle = '#FFD700'; ctx.font = '24px Malgun Gothic'; ctx.fillText(tr(getStageName(getActiveStages()[currentStage]) + ' 클리어!', getStageName(getActiveStages()[currentStage]) + ' Cleared!'), cx, cy - 85);
     ctx.fillStyle = '#FFF'; ctx.font = '18px Malgun Gothic';
-    ctx.fillText(`스테이지 점수: ${score}`, cx, cy - 45);
-    ctx.fillText(`누적 점수: ${totalScore + score}`, cx, cy - 18);
+    ctx.fillText(tr(`스테이지 점수: ${score}`, `Stage Score: ${score}`), cx, cy - 45);
+    ctx.fillText(tr(`누적 점수: ${totalScore + score}`, `Total Score: ${totalScore + score}`), cx, cy - 18);
     ctx.font = '55px serif'; ctx.fillText('\uD83D\uDC69\u200D\u2764\uFE0F\u200D\uD83D\uDC68', cx, cy + 40);
-    let msgs = ['"여보, 이제 어딜 도망가려고!"', '"다음부턴 심방 끝까지 있어!"', '"도망은 실패야, 여보~"', '"내가 잡을 줄 알았지?"', '"목사님한테 이를 거야!"'];
+    let msgsKo = ['"여보, 이제 어딜 도망가려고!"', '"다음부턴 심방 끝까지 있어!"', '"도망은 실패야, 여보~"', '"내가 잡을 줄 알았지?"', '"목사님한테 이를 거야!"'];
+    let msgsEn = ['"Honey, where do you think you\'re going?"', '"Next time stay until visitation ends!"', '"Escape failed, dear~"', '"Knew I\'d catch you, right?"', '"I\'m telling the pastor!"'];
+    let msgs = currentLang === 'ko' ? msgsKo : msgsEn;
     ctx.fillStyle = '#FFB6C1'; ctx.font = '16px Malgun Gothic'; ctx.fillText(msgs[currentStage % msgs.length], cx, cy + 100);
     ctx.fillStyle = '#AAA'; ctx.font = '13px Malgun Gothic'; ctx.fillText(`(${currentStage + 1} / ${getActiveStages().length})`, cx, cy + 130);
 
     let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 18px Malgun Gothic';
-    ctx.fillText(currentStage < getActiveStages().length - 1 ? '클릭 / 터치하여 다음 스테이지!' : '클릭 / 터치하여 엔딩 보기!', cx, panelY + panelH + 35);
+    ctx.fillText(currentStage < getActiveStages().length - 1 ? tr('클릭 / 터치하여 다음 스테이지!', 'Click / Tap for Next Stage!') : tr('클릭 / 터치하여 엔딩 보기!', 'Click / Tap for the Ending!'), cx, panelY + panelH + 35);
 }
 
 function drawGameOver() {
@@ -2539,23 +2627,26 @@ function drawGameOver() {
     let dmodeG = DIFFICULTY[difficulty];
     ctx.fillStyle = dmodeG.color; ctx.font = 'bold 13px Malgun Gothic';
     ctx.fillText(`[ ${dmodeG.emoji} ${dmodeG.name} MODE ]`, cxG, cyG - 145);
-    ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 38px Malgun Gothic'; ctx.fillText('남편이 도망갔다...', cxG, cyG - 105);
+    ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 38px Malgun Gothic'; ctx.fillText(tr('남편이 도망갔다...', 'Your husband got away...'), cxG, cyG - 105);
     return drawGameOverRest(cxG, cyG, panelY, panelH);
 }
 function drawGameOverRest(cx, cy, panelY, panelH) {
     ctx.font = '60px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('🏃💨', cx, cy - 40);
-    let msgs = ['"자기야~ 나 PC방 갔다올게~"', '"심방은 다음에 하지 뭐~"', '"탈출 성공!"', '"낚시 가야지~"'];
+    let msgsKo = ['"자기야~ 나 PC방 갔다올게~"', '"심방은 다음에 하지 뭐~"', '"탈출 성공!"', '"낚시 가야지~"'];
+    let msgsEn = ['"Honey~ I\'m heading to the internet cafe~"', '"We\'ll do visitation next time~"', '"Escape successful!"', '"Time to go fishing~"'];
+    let msgs = currentLang === 'ko' ? msgsKo : msgsEn;
     ctx.fillStyle = '#FFB6C1'; ctx.font = '17px Malgun Gothic';
     ctx.fillText(msgs[Math.floor(Date.now() / 3000) % msgs.length], cx, cy + 35);
-    ctx.fillStyle = '#FFD700'; ctx.font = 'bold 18px Malgun Gothic'; ctx.fillText(`점수: ${score}`, cx, cy + 75);
+    ctx.fillStyle = '#FFD700'; ctx.font = 'bold 18px Malgun Gothic'; ctx.fillText(tr(`점수: ${score}`, `Score: ${score}`), cx, cy + 75);
     ctx.fillStyle = '#AAA'; ctx.font = '12px Malgun Gothic';
-    ctx.fillText(`${getActiveStages()[currentStage].name}에서 실패`, cx, cy + 105);
+    let _stName = getStageName(getActiveStages()[currentStage]);
+    ctx.fillText(tr(`${_stName}에서 실패`, `Failed at ${_stName}`), cx, cy + 105);
     ctx.fillStyle = '#888'; ctx.font = '11px Malgun Gothic';
-    ctx.fillText('(같은 모드의 1단계부터 다시 시작)', cx, cy + 125);
+    ctx.fillText(tr('(같은 모드의 1단계부터 다시 시작)', '(Restart from Stage 1 of the same mode)'), cx, cy + 125);
     let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 18px Malgun Gothic';
-    ctx.fillText('클릭 / 터치하여 재도전!', cx, panelY + panelH + 30);
+    ctx.fillText(tr('클릭 / 터치하여 재도전!', 'Click / Tap to retry!'), cx, panelY + panelH + 30);
 }
 function drawGameOverDeprecated() {
     ctx.fillStyle = '#E74C3C'; ctx.font = 'bold 48px Malgun Gothic'; ctx.fillText('남편이 도망갔다...', canvas.width / 2, 180);
@@ -2589,16 +2680,16 @@ function drawEnding() {
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     let dmodeE = DIFFICULTY[difficulty];
     ctx.fillStyle = dmodeE.color; ctx.font = 'bold 16px Malgun Gothic';
-    ctx.fillText(`★ ${dmodeE.emoji} ${dmodeE.name} MODE 클리어! ★`, cx, cy - 200);
-    ctx.fillStyle = '#FFF'; ctx.font = 'bold 42px Malgun Gothic'; ctx.fillText('축하합니다!', cx, cy - 165);
-    ctx.fillStyle = '#FFD700'; ctx.font = '18px Malgun Gothic'; ctx.fillText(`${getActiveStages().length}개 스테이지를 모두 클리어했습니다!`, cx, cy - 125);
+    ctx.fillText(tr(`★ ${dmodeE.emoji} ${dmodeE.name} MODE 클리어! ★`, `★ ${dmodeE.emoji} ${dmodeE.name} MODE CLEARED! ★`), cx, cy - 200);
+    ctx.fillStyle = '#FFF'; ctx.font = 'bold 42px Malgun Gothic'; ctx.fillText(tr('축하합니다!', 'Congratulations!'), cx, cy - 165);
+    ctx.fillStyle = '#FFD700'; ctx.font = '18px Malgun Gothic'; ctx.fillText(tr(`${getActiveStages().length}개 스테이지를 모두 클리어했습니다!`, `Cleared all ${getActiveStages().length} stages!`), cx, cy - 125);
     ctx.font = '70px serif'; ctx.fillText('\uD83D\uDC69\u200D\u2764\uFE0F\u200D\uD83D\uDC68', cx, cy - 55);
     ctx.fillStyle = '#FFF'; ctx.font = '18px Malgun Gothic';
-    ctx.fillText('남편은 다시는 심방에서 도망가지 않겠다고', cx, cy + 10);
-    ctx.fillText('굳게 약속했습니다... (과연?)', cx, cy + 38);
+    ctx.fillText(tr('남편은 다시는 심방에서 도망가지 않겠다고', 'Your husband solemnly promised never to flee'), cx, cy + 10);
+    ctx.fillText(tr('굳게 약속했습니다... (과연?)', 'visitation again... (Really?)'), cx, cy + 38);
 
     ctx.fillStyle = '#FF6B6B'; ctx.font = 'bold 26px Malgun Gothic';
-    ctx.fillText(`최종 점수: ${totalScore}`, cx, cy + 85);
+    ctx.fillText(tr(`최종 점수: ${totalScore}`, `Final Score: ${totalScore}`), cx, cy + 85);
 
     let grade = totalScore > 50000 ? 'S' : totalScore > 30000 ? 'A' : totalScore > 15000 ? 'B' : 'C';
     let gradeColor = grade === 'S' ? '#FFD700' : grade === 'A' ? '#2ECC71' : grade === 'B' ? '#3498DB' : '#CCC';
@@ -2608,11 +2699,11 @@ function drawEnding() {
     ctx.strokeStyle = gradeColor; ctx.lineWidth = 2;
     roundRect(ctx, cx - 100, cy + 115, 200, 60, 10); ctx.stroke();
     ctx.fillStyle = gradeColor;
-    ctx.font = 'bold 44px Malgun Gothic'; ctx.fillText(`등급: ${grade}`, cx, cy + 145);
+    ctx.font = 'bold 44px Malgun Gothic'; ctx.fillText(tr(`등급: ${grade}`, `Grade: ${grade}`), cx, cy + 145);
 
     let pu = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(255,255,255,${pu})`; ctx.font = 'bold 18px Malgun Gothic';
-    ctx.fillText('클릭 / 터치하여 처음부터!', cx, panelY + panelH + 30);
+    ctx.fillText(tr('클릭 / 터치하여 처음부터!', 'Click / Tap to play again!'), cx, panelY + panelH + 30);
 }
 
 // ========== 유틸 ==========
@@ -2663,6 +2754,9 @@ function render() {
     drawPlayingHudButtons();
     if (gameState === 'paused') drawPauseOverlay();
 }
+
+// 초기 언어 적용 (DOM 타이틀 / 터치 버튼 라벨)
+applyLangToDOM();
 
 function gameLoop() { update(); render(); requestAnimationFrame(gameLoop); }
 gameLoop();
